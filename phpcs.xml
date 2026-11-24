@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<ruleset name="Typed Collections">
+    <description>PSR-12 formatting for maintained source and development tools.</description>
+    <file>src</file>
+    <file>tests</file>
+    <file>tools</file>
+    <file>benchmarks</file>
+    <file>examples</file>
+    <arg name="colors"/>
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    <rule ref="PSR12"/>
+</ruleset>

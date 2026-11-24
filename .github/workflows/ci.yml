@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: PHP ${{ matrix.php }} / ${{ matrix.dependencies }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - php: '8.3'
+            dependencies: locked
+          - php: '8.4'
+            dependencies: locked
+          - php: '8.5'
+            dependencies: locked
+          - php: '8.3'
+            dependencies: lowest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: shivammathur/setup-php@d52fc211a0436f8839a587b3b5b8efddab4744ea # v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: dom, mbstring, simplexml, tokenizer
+          tools: composer:v2
+          coverage: ${{ matrix.php == '8.3' && matrix.dependencies == 'locked' && 'xdebug' || 'none' }}
+      - run: composer validate --strict
+      - if: matrix.dependencies == 'locked'
+        run: composer install --no-interaction --prefer-dist
+      - if: matrix.dependencies == 'lowest'
+        run: composer update --prefer-lowest --prefer-stable --no-interaction --prefer-dist
+      - run: composer check
+      - run: composer audit
+      - if: matrix.php == '8.3' && matrix.dependencies == 'locked'
+        run: composer coverage
+        env:
+          XDEBUG_MODE: coverage
+      - if: matrix.php == '8.3' && matrix.dependencies == 'locked'
+        run: php benchmarks/run.php --size=1000 --iterations=3 > build/benchmark.json
+      - if: matrix.php == '8.3' && matrix.dependencies == 'locked'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: coverage-and-benchmark
+          path: build/
+          retention-days: 14
+
+  consumer:
+    name: Production dependency smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: shivammathur/setup-php@d52fc211a0436f8839a587b3b5b8efddab4744ea # v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+      - run: composer install --no-dev --no-interaction --prefer-dist
+      - run: php examples/basic.php

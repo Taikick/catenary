@@ -1,0 +1,72 @@
+{
+    "name": "taikick/typed-collections",
+    "description": "Immutable PHP collections and Option with tested PHPStan and Psalm inference.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "collection",
+        "option",
+        "generics",
+        "immutable",
+        "phpstan",
+        "psalm"
+    ],
+    "authors": [
+        {
+            "name": "Taiki Kato",
+            "homepage": "https://github.com/Taikick"
+        }
+    ],
+    "require": {
+        "php": "^8.3"
+    },
+    "require-dev": {
+        "nikic/php-parser": "^5.0",
+        "phpstan/phpstan": "^2.3.7",
+        "phpunit/phpunit": "^12.0",
+        "squizlabs/php_codesniffer": "^4.0",
+        "vimeo/psalm": "^7.17"
+    },
+    "autoload": {
+        "psr-4": {
+            "Taikick\\Collections\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Taikick\\Collections\\Tests\\": "tests/"
+        }
+    },
+    "scripts": {
+        "test": "phpunit",
+        "stan": "phpstan analyse --memory-limit=512M",
+        "psalm": "psalm --no-cache --show-info=false --no-progress --threads=1",
+        "docs:check": "@php tools/check-docblocks.php",
+        "check": [
+            "@test",
+            "@stan",
+            "@psalm",
+            "@types:negative",
+            "@docs:check",
+            "@style",
+            "@example"
+        ],
+        "types:negative": "@php tools/check-types-negative.php",
+        "style": "phpcs",
+        "style:fix": "phpcbf",
+        "bench": "@php benchmarks/run.php",
+        "example": "@php examples/basic.php",
+        "coverage": [
+            "phpunit --coverage-text=build/coverage.txt --coverage-clover=build/coverage.xml",
+            "@php tools/check-coverage.php"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "platform": {
+            "php": "8.3.16"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

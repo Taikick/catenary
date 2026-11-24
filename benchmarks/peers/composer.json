@@ -1,0 +1,8 @@
+{
+    "name": "taikick/typed-collections-benchmark-peers",
+    "description": "Isolated optional dependencies for comparative benchmarks.",
+    "type": "project",
+    "license": "MIT",
+    "require": {"shogogg/scalikephp": "0.8.3"},
+    "config": {"sort-packages": true, "allow-plugins": false}
+}

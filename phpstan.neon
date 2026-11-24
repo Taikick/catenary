@@ -1,0 +1,8 @@
+parameters:
+    level: max
+    paths:
+        - src
+        - tests/Types/phpstan.php
+        - tests/Types/covariance.php
+    tmpDir: .phpstan-cache
+    treatPhpDocTypesAsCertain: true

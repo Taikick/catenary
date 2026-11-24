@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<psalm xmlns="https://getpsalm.org/schema/config" errorLevel="1" resolveFromConfigFile="true" cacheDirectory=".psalm-cache" findUnusedCode="false">
+    <projectFiles>
+        <directory name="src"/>
+        <file name="tests/Types/invalid.php"/>
+    </projectFiles>
+</psalm>
