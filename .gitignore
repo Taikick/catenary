@@ -6,3 +6,5 @@
 /.idea/
 /.vscode/
 .DS_Store
+/benchmarks/peers/vendor/
+/benchmarks/peers/composer.lock
