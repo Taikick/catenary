@@ -6,7 +6,7 @@ php benchmarks/run.php --size=20000 --iterations=7
 php benchmarks/run.php --size=100000 --iterations=7
 ```
 
-各操作でウォームアップと返却値全体の一致を確認し、奇数回の試行の中央値を出力します。PHPバージョン・OS・CPUアーキテクチャ・OPcache・JIT・Xdebugの設定もJSONへ記録します。
+各操作でウォームアップと返却値全体の一致を確認し、奇数回の試行の中央値を出力します。PHPバージョン・OS・CPUアーキテクチャ・memory_limit・OPcache・JIT・Xdebugの設定もJSONへ記録します。
 
 `median_additional_peak_bytes`は各試行開始時点から増えたPHPアロケータ使用量です。プロセス全体のRSS、入力全体の保存領域、別プロセスのDB読込は含みません。CIでは時間の閾値を課さず、実行と結果の一致を確認します。
 
@@ -28,7 +28,21 @@ php benchmarks/run.php --size=100000 --iterations=7
 
 検索・判定では入力Vecを測定区間の外で一度構築し、早期終了と入力構築のコストを分けます。末尾一致や一致なしでは全走査が必要です。先頭一致の結果だけで、通常の全操作が高速になるとは判断しません。既存Vecの再利用は定数時間ですが、元データの取得や作成まで定数時間になるわけではありません。
 
-Dictの測定はv0.2.0で追加しました。入力Dictも測定区間外で構築し、出力の`toPairs()`は測定に含めます。mergeのネイティブループは毎回キーを符号化しますが、構築済みDictは既存の内部キーを利用します。filterのネイティブループはコールバック呼出しを伴いません。この差を含む操作単位の測定であり、速度の一般化や入力構築込みの比較には使いません。文字列キーは対応する整数キーの直後にあるため、`first`でも最初の2件を判定します。全試行後に両入力の不変性も確認します。
+Dictの測定はv0.2.0で追加しました。入力Dictも測定区間外で構築し、出力の`toPairs()`は測定に含めます。mergeのネイティブループは毎回キーを符号化しますが、構築済みDictは既存の内部キーを利用します。filterのネイティブループはコールバック呼出しを伴いません。この差を含む操作単位の測定であり、速度の一般化や入力構築込みの比較には使いません。文字列キーは対応する整数キーの直後にあるため、`first`でも最初の2件を判定します。これらの試行後に両入力の不変性も確認し、v0.3.0の追加操作の試行後にはその入力辞書も再確認します。
+
+## v0.3.0の辞書操作
+
+以下はv0.3.0で追加した測定です。上記と同じ構築済みの`2 × size`件（整数キー・文字列キー各`size`件）の辞書を使い、型と順序を含む全出力の一致を毎回確認します。
+These workloads, added in v0.3.0, use the same prebuilt dictionary with `2 × size` entries, checking every result's value, key type and ordering.
+
+| 出力キー / Workload | 入力と確認内容 / Checks |
+| --- | --- |
+| `dict_group_by_typed_keys` | 値を4で割った余りを、元キーと同じ整数/文字列型のグループキーにする。最大8グループの初出順と内側の元キー・順序を照合。Group by remainder modulo 4 with distinct integer/string group keys; compare first-seen group order and all original inner keys. |
+| `dict_partition_typed_keys` | 偶数値の文字列キーを合致側、それ以外を非合致側に分け、全件が一方だけへ元順序で出ることを照合。Partition even-valued string keys from all other entries and compare both ordered outputs. |
+| `dict_flat_map_typed_keys` | 各組を元の組と追加の`extra:i:`/`extra:s:`キー・符号反転値へ展開して`4 × size`件を作る。重複拒否付きのネイティブループと全件照合。Expand each pair to itself and a uniquely typed extra key with negated value, yielding `4 × size` output entries. |
+
+分類は内側のDictも`toPairs()`へ変換し、全ての出力変換を測定時間とメモリに含めます。ネイティブループはコールバックや不変コンテナを生成しないため、コンテナの生成・変換コストを含む操作単位の比較です。flatMapのネイティブ側も全出力キーを符号化して重複を検査します。計算量はgroupBy/partitionが期待O(n)、flatMapが期待O(n + m)ですが、出力を保存する領域はそれぞれO(n)、O(m)必要です。大きな入力での結果を、遅延処理やデータ取得の性能へ一般化しません。
+Grouping converts each inner Dict to pairs, and all output conversions are included in timing and memory. Native loops do not allocate immutable containers or invoke callbacks, so this compares complete operations including those costs. The native flatMap loop also encodes and checks every output key for duplicates. Grouping/partitioning take expected O(n) work and O(n) output storage; flatMap takes expected O(n + m) work and O(m) output storage. These workloads do not measure lazy pipelines or source I/O.
 
 ## 比較条件
 

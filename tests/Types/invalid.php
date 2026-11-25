@@ -46,6 +46,20 @@ function rejectedPrograms(): void
     $dict->fold(initial: 0, reducer: $wrongKeyReducer); // @expect-type-error
     $dict->fold(initial: null, reducer: $nonNullReducer); // @expect-type-error
     $dict->merge(other: [['next', 2]]); // @expect-type-error
+    $dict->groupBy(keyOf: static fn (string $value): string => $value); // @expect-type-error
+    $dict->groupBy(keyOf: static fn (int $value, int $key): int => $key); // @expect-type-error
+    $dict->groupBy(keyOf: static fn (int $value): float => $value / 2); // @expect-type-error
+    $dict->partition(predicate: static fn (string $value): bool => $value !== ''); // @expect-type-error
+    $dict->partition(predicate: static fn (int $value): int => $value); // @expect-type-error
+    $dict->flatMap(mapper: static fn (string $value): array => [[$value, $value]]); // @expect-type-error
+    $dict->flatMap(mapper: static fn (int $value): array => [[1.5, $value]]); // @expect-type-error
+    $dict->flatMap(mapper: static fn (int $value): int => $value); // @expect-type-error
+    $dict->count(predicate: static fn (string $value): bool => $value !== ''); // @expect-type-error
+    $dict->count(predicate: static fn (int $value, int $key): bool => $value === $key); // @expect-type-error
+    $dict->count(predicate: static fn (int $value): int => $value); // @expect-type-error
+    $dict->mkString(formatter: static fn (string $value): string => $value); // @expect-type-error
+    $dict->mkString(formatter: static fn (int $value): int => $value); // @expect-type-error
+    echo $dict->getOrDefault(key: 1.5, default: 0); // @expect-type-error
     $stream = Stream::fromFactory(static fn (): array => [1]);
     $stream->filter(static fn (int $n): string => (string) $n); // @expect-type-error
     echo (int) Vec::of(1)->at('first')->isSome(); // @expect-type-error

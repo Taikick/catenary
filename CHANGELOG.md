@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+## 0.3.0 — 2026-11-25
+
+Additive dictionary operations and an optional count predicate; the PHP 8.3 runtime minimum is unchanged.
+辞書操作の追加と任意の件数判定述語の拡張で、実行時の最低PHP 8.3は変更しません。
+
+- Add `Dict::groupBy` with keyed inner dictionaries, `partition` with accepted/rejected dictionaries, and eager pair-producing `flatMap` with duplicate-key rejection.
+  元キーを保つ内側辞書を返す`Dict::groupBy`、合致・非合致へ分ける`partition`、組を即時展開して重複キーを拒否する`flatMap`を追加。
+- Extend `Dict::count` with an optional predicate while preserving argument-free `Countable` behavior; add strict numeric `sum` and explicitly formatted `mkString`.
+  引数なしのCountable動作を維持して`Dict::count`へ任意の述語を追加し、数値型だけを加算する`sum`と文字列化を明示する`mkString`を追加。
+- Add `Dict::getOrDefault` for a direct default value without replacing present null, and `toArray` that rejects PHP key coercion instead of losing strict key identity.
+  存在するnullを置換しない値指定の`Dict::getOrDefault`と、キー型を失わずPHPの暗黙変換を拒否する`toArray`を追加。
+- Cover callback evaluation, empty/null/key boundaries, inference and misuse; add output-validated grouping, partitioning and expansion benchmarks.
+  コールバック評価・空/null/キーの境界、型推論・誤用を検証し、出力の一致を確認する分類・分割・展開のベンチマークを追加。
+
 ## 0.2.0 — 2026-11-25
 
 Additive dictionary APIs; the PHP 8.3 runtime minimum is unchanged.

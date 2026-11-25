@@ -9,6 +9,7 @@ use InvalidArgumentException;
 use IteratorAggregate;
 use Catenary\Internal\Key;
 use Traversable;
+use TypeError;
 
 /**
  * An insertion-ordered immutable dictionary that distinguishes 1 from '1'.
@@ -83,6 +84,28 @@ final readonly class Dict implements Countable, IteratorAggregate
     }
 
     /**
+     * Exports a native array only when PHP preserves every original key type.
+     * PHPが全ての元のキー型を保持できる場合だけネイティブ配列へ変換します。
+     *
+     * Numeric string keys that PHP converts to integers throw even without collisions; use toPairs losslessly.
+     * 整数へ変わる文字列キーは衝突がなくても拒否します。型を損なわない変換にはtoPairsを使います。
+     *
+     * @return array<K, V>
+     * @throws \InvalidArgumentException If PHP would change a key's type. / キーの型が変わる場合。
+     */
+    public function toArray(): array
+    {
+        $result = [];
+        foreach ($this->entries as [$key, $value]) {
+            if (array_key_first([$key => true]) !== $key) {
+                throw new InvalidArgumentException('Native arrays would change a key type. Use toPairs() instead.');
+            }
+            $result[$key] = $value;
+        }
+        return $result;
+    }
+
+    /**
      * Iterates over key-value pairs with zero-based sequence indexes.
      * ゼロ始まりの連番でキーと値の組を走査します。
      *
@@ -97,15 +120,26 @@ final readonly class Dict implements Countable, IteratorAggregate
     }
 
     /**
-     * Returns the entry count in constant time.
-     * 登録件数を定数時間で返します。
+     * Counts all entries in constant time, or visits every entry once to count predicate matches.
+     * 述語なしなら定数時間で全件数を返し、指定時は全登録を一回ずつ判定して一致件数を返します。
      *
+     * @param (callable(V, K): bool)|null $predicate
      * @return int
+     * @throws \Throwable Propagates predicate exceptions unchanged. / 述語の例外をそのまま送出します。
      */
     #[\Override]
-    public function count(): int
+    public function count(?callable $predicate = null): int
     {
-        return count($this->entries);
+        if ($predicate === null) {
+            return count($this->entries);
+        }
+        $count = 0;
+        foreach ($this->entries as [$key, $value]) {
+            if ($predicate($value, $key)) {
+                ++$count;
+            }
+        }
+        return $count;
     }
 
     /**
@@ -142,6 +176,24 @@ final readonly class Dict implements Countable, IteratorAggregate
     {
         $encoded = Key::encode(key: $key);
         return isset($this->entries[$encoded]) ? Option::some(value: $this->entries[$encoded][1]) : Option::none();
+    }
+
+    /**
+     * Returns a present value, including null, or the supplied default only when the typed key is absent.
+     * 型を区別したキーに値があればnullも保持し、未登録の場合だけ指定した既定値を返します。
+     *
+     * A callable default is returned as a value and is never invoked by this method.
+     * callableの既定値も値としてそのまま返し、このメソッドから呼び出しません。
+     *
+     * @template D
+     * @param int|string $key
+     * @param D $default
+     * @return V|D
+     */
+    public function getOrDefault(int|string $key, mixed $default): mixed
+    {
+        $encoded = Key::encode(key: $key);
+        return isset($this->entries[$encoded]) ? $this->entries[$encoded][1] : $default;
     }
 
     /**
@@ -269,6 +321,90 @@ final readonly class Dict implements Countable, IteratorAggregate
     }
 
     /**
+     * Groups original dictionaries by strictly typed keys in first-seen group order.
+     * 型を区別したキーで辞書を分類し、グループの初出順と各登録の元のキー・順序を保持します。
+     *
+     * Calls keyOf once per entry with value then key; builds each group without repeated immutable copies.
+     * 値・キーの順で各登録を一回分類し、不変辞書の反復コピーをせずグループを構築します。
+     *
+     * @template G of int|string = never
+     * @param callable(V, K): G $keyOf
+     * @return \Catenary\Dict<G, \Catenary\Dict<K, V>>
+     * @throws \Throwable Propagates classifier exceptions unchanged. / 分類処理の例外をそのまま送出します。
+     */
+    public function groupBy(callable $keyOf): Dict
+    {
+        $groups = [];
+        foreach ($this->entries as $encoded => $pair) {
+            [$key, $value] = $pair;
+            $group = $keyOf($value, $key);
+            $encodedGroup = Key::encode(key: $group);
+            $groups[$encodedGroup] ??= [$group, []];
+            $groups[$encodedGroup][1][$encoded] = $pair;
+        }
+        $entries = [];
+        foreach ($groups as $encoded => [$group, $members]) {
+            $entries[$encoded] = [$group, new self(entries: $members)];
+        }
+        return new self(entries: $entries);
+    }
+
+    /**
+     * Splits original entries into accepted and rejected dictionaries with one ordered predicate pass.
+     * 挿入順の一回の判定で元の登録を合致・非合致の二辞書へ分け、キー型と値を保持します。
+     *
+     * @param callable(V, K): bool $predicate
+     * @return array{\Catenary\Dict<K, V>, \Catenary\Dict<K, V>}
+     * @throws \Throwable Propagates predicate exceptions unchanged. / 述語の例外をそのまま送出します。
+     */
+    public function partition(callable $predicate): array
+    {
+        $accepted = [];
+        $rejected = [];
+        foreach ($this->entries as $encoded => $pair) {
+            [$key, $value] = $pair;
+            if ($predicate($value, $key)) {
+                $accepted[$encoded] = $pair;
+            } else {
+                $rejected[$encoded] = $pair;
+            }
+        }
+        return [new self(entries: $accepted), new self(entries: $rejected)];
+    }
+
+    /**
+     * Eagerly flattens one level of mapped key-value pairs in source and inner traversal order.
+     * 変換したキーと値の組を一段だけ即時に平坦化し、元の挿入順と内側の走査順を保持します。
+     *
+     * Every mapped iterable is consumed once; duplicate typed keys throw rather than overwrite.
+     * 各変換結果を一度だけ走査し、型まで同じ重複キーは上書きせず例外にします。
+     *
+     * @template KNew of int|string = never
+     * @template VNew = never
+     * @param callable(V, K): iterable<mixed, array{KNew, VNew}> $mapper
+     * @return ($mapper is (callable(never, never): array{})
+     *     ? \Catenary\Dict<never, never> : \Catenary\Dict<KNew, VNew>)
+     * @throws \InvalidArgumentException For duplicate output keys. / 出力キーが重複した場合。
+     * @throws \Throwable Propagates mapper and iterable exceptions unchanged. / 変換・走査の例外をそのまま送出します。
+     */
+    public function flatMap(callable $mapper): Dict
+    {
+        $entries = [];
+        foreach ($this->entries as [$key, $value]) {
+            foreach ($mapper($value, $key) as [$newKey, $newValue]) {
+                $encoded = Key::encode(key: $newKey);
+                if (isset($entries[$encoded])) {
+                    throw new InvalidArgumentException(
+                        'Duplicate dictionary key. Use merge() for explicit replacement.',
+                    );
+                }
+                $entries[$encoded] = [$newKey, $newValue];
+            }
+        }
+        return new self(entries: $entries);
+    }
+
+    /**
      * Transforms values with their keys while preserving key types and order.
      * キーとともに値を変換し、キーの型と順序は保持します。
      *
@@ -303,6 +439,57 @@ final readonly class Dict implements Countable, IteratorAggregate
             $accumulator = $reducer($accumulator, $value, $key);
         }
         return $accumulator;
+    }
+
+    /**
+     * Adds numeric values in insertion order, returning integer zero for an empty dictionary.
+     * 挿入順に数値を加算し、空辞書では整数のゼロを返します。
+     *
+     * Accepts only int and float values; native floating-point and integer-overflow behavior is preserved.
+     * intとfloatの値だけを受け入れ、浮動小数点と整数オーバーフローはPHP本来の計算に従います。
+     *
+     * @return int|float
+     * @throws \TypeError For any non-numeric value, including numeric strings. / 数値文字列を含む非数値型の場合。
+     */
+    public function sum(): int|float
+    {
+        $total = 0;
+        foreach ($this->entries as [, $value]) {
+            if (!is_int($value) && !is_float($value)) {
+                throw new TypeError('Dict::sum() accepts only int and float values.');
+            }
+            $total = is_int($total) && is_int($value)
+                ? $total + $value
+                : (float) $total + (float) $value;
+        }
+        return $total;
+    }
+
+    /**
+     * Formats entries once in insertion order and joins them with an explicit separator and wrappers.
+     * 挿入順に各登録を一回整形し、指定した区切り文字・接頭辞・接尾辞で結合します。
+     *
+     * The formatter receives value then key; empty dictionaries return prefix plus suffix without calling it.
+     * 整形処理には値・キーの順で渡し、空辞書では呼び出さず接頭辞と接尾辞だけを返します。
+     *
+     * @param callable(V, K): string $formatter
+     * @param string $separator
+     * @param string $prefix
+     * @param string $suffix
+     * @return string
+     * @throws \Throwable Propagates formatter exceptions unchanged. / 整形処理の例外をそのまま送出します。
+     */
+    public function mkString(
+        callable $formatter,
+        string $separator = '',
+        string $prefix = '',
+        string $suffix = '',
+    ): string {
+        $parts = [];
+        foreach ($this->entries as [$key, $value]) {
+            $parts[] = $formatter($value, $key);
+        }
+        return $prefix . implode($separator, $parts) . $suffix;
     }
 
     /**

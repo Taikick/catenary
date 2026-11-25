@@ -7,7 +7,7 @@ PHPの配列や`iterable`を、型付きのメソッドチェーンで扱うた�
 
 **PHP 8.3以上・MITライセンス・実行時の外部依存なし。** PHPStanとPsalmの型推論をテストし、フレームワークに依存せず利用できます。
 
-**最新リリース: `v0.2.0`（2026-11-25）。** 1.0前のAPIで、マイナーバージョンでは破壊的変更を行う場合があります。パッチバージョンでは互換性を維持します。Packagistには未登録のため、下記のVCS設定でタグ版を導入してください。旧名からの変更は[移行ガイド](docs/migration-to-catenary.md)を参照してください。
+**最新リリース: `v0.3.0`（2026-11-25）。** 1.0前のAPIで、マイナーバージョンでは破壊的変更を行う場合があります。パッチバージョンでは互換性を維持します。Packagistには未登録のため、下記のVCS設定でタグ版を導入してください。旧名からの変更は[移行ガイド](docs/migration-to-catenary.md)を参照してください。
 
 ## 値を変換して絞り込む
 
@@ -125,6 +125,48 @@ $amounts->merge(other: Dict::fromPairs(pairs: [['1', 250], ['new', 75]]))
 
 `merge`は型も同じキーを右側の値で上書きし、左側の既存位置を維持します。新しいキーは右側の順番で末尾へ追加し、元の辞書は両方とも変更しません。詳細な評価回数・型・計算量は[API契約](docs/contracts.md#dictキーの型を区別する辞書)を参照してください。
 
+### 辞書の分類・展開・出力
+
+以下の8項目は`v0.3.0`で追加・拡張しました。
+
+```php
+use Catenary\Dict;
+
+$amounts = Dict::fromPairs(pairs: [['base', 100], ['extra', 50], ['refund', -20]]);
+
+$amounts->groupBy(keyOf: fn (int $amount): string => $amount >= 0 ? 'income' : 'refund')
+    ->get(key: 'income')->getOrThrow()->toPairs(); // [['base', 100], ['extra', 50]]
+[$income, $refund] = $amounts->partition(predicate: fn (int $amount): bool => $amount >= 0);
+$income->toPairs(); // [['base', 100], ['extra', 50]]
+$refund->toPairs(); // [['refund', -20]]
+
+$amounts->flatMap(mapper: fn (int $amount, string $key): array => [
+    [$key, $amount],
+    [$key . ':double', $amount * 2],
+])->toPairs(); // [['base', 100], ['base:double', 200], ['extra', 50], ...]
+
+$amounts->count(predicate: fn (int $amount): bool => $amount > 0); // 2
+$amounts->sum(); // 130
+$amounts->mkString(
+    formatter: fn (int $amount, string $key): string => $key . '=' . $amount,
+    separator: ', ',
+    prefix: '[',
+    suffix: ']',
+); // '[base=100, extra=50, refund=-20]'
+$amounts->toArray(); // ['base' => 100, 'extra' => 50, 'refund' => -20]
+$amounts->getOrDefault(key: 'missing', default: 0); // 0
+
+Dict::fromPairs(pairs: [['memo', null]])->getOrDefault(key: 'memo', default: '未登録'); // null
+```
+
+`groupBy`は`Dict<グループキー, Dict<元キー, 元値>>`を返します。グループは最初に現れた順で、各グループ内も元のキー・挿入順・nullを保持します。`partition`は合致・非合致の二つの辞書を返し、どちらもキーを失いません。各コールバックは値・キーの順で一件につき一回呼びます。
+
+`flatMap`は、変換先の`[キー, 値]`の組を返す`iterable`を一段だけ即時展開します。組のリスト・ジェネレータ・Dictを返せます。連想配列そのものではなく、`[['key', $value]]`のように組を返してください。同じ型・値のキーが重複すると`InvalidArgumentException`になり、暗黙に上書きしません。
+
+引数なしの`count()`とPHPの`count($dict)`は従来どおり全件数を定数時間で返します。述語付きでは全件を一回ずつ判定します。`sum()`はint/floatだけを挿入順に加算し、空なら整数0、非数値なら`TypeError`を送出します。数値文字列・bool・nullの暗黙変換はしません。整数の桁あふれでfloatになるため戻り型は`int|float`です。`mkString`は明示的な文字列化コールバックを必須にし、空ならprefixとsuffixだけを返します。
+
+`toArray()`はキーの型を損なう変換を拒否します。たとえば文字列キー`'1'`はPHP配列では整数1になるため、単独でも`InvalidArgumentException`です。そうしたキーも扱う保存・通信には`toPairs()`を使います。`getOrDefault`は欠損時だけ既定値を返し、存在するnullはそのままです。既定値がcallableでも実行しません。遅延生成が必要なら従来の`get(...)->getOrElse(...)`を使います。
+
 ## 必要な分だけ生成する
 
 ```php
@@ -157,7 +199,7 @@ $snapshot->toList(); // [0, 2, 4]
     "repositories": [
         {"type": "vcs", "url": "https://github.com/Taikick/catenary"}
     ],
-    "require": {"catenary/collections": "^0.2.0"}
+    "require": {"catenary/collections": "^0.3.0"}
 }
 ```
 
@@ -165,7 +207,7 @@ $snapshot->toList(); // [0, 2, 4]
 composer update catenary/collections --with-dependencies
 ```
 
-`^0.2.0`は`0.2.0`以上・`0.3.0`未満の更新を許可します。suffixのない`v0.2.0`はComposerでは`stable`に分類されます。APIの互換性は[1.0前の方針](CONTRIBUTING.md#compatibility--互換性)に従います。更新した`composer.lock`をレビュー・保存し、配備には`composer install`を使います。旧パッケージを利用中の場合は[改名に伴う移行手順](docs/migration-to-catenary.md)に従ってください。
+`^0.3.0`は`0.3.0`以上・`0.4.0`未満の更新を許可します。suffixのない`v0.3.0`はComposerでは`stable`に分類されます。APIの互換性は[1.0前の方針](CONTRIBUTING.md#compatibility--互換性)に従います。更新した`composer.lock`をレビュー・保存し、配備には`composer install`を使います。旧パッケージを利用中の場合は[改名に伴う移行手順](docs/migration-to-catenary.md)に従ってください。
 
 未リリースの変更を試す場合だけ`dev-main`を選び、利用先の`composer.lock`でレビュー済みコミットを固定してください。`main`にはタグ版より後の変更が入ります。
 

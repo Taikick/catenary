@@ -36,8 +36,8 @@ Catenaryへの改名は、旧クラスaliasを提供しない開発版の破壊�
 
 ## Release procedure / リリース手順
 
-The latest release is `v0.2.0` (2026-11-25); the first release was `v0.1.0`. Composer treats a tag without a prerelease suffix as `stable`; the pre-1.0 compatibility policy still applies. Consumer requirements should normally use `^0.2.0` for the current release line. Keep Packagist registration status explicit in both READMEs.
-最新リリースは`v0.2.0`（2026-11-25）、初回は`v0.1.0`です。プレリリースsuffixのないタグはComposerでstableに分類され、APIには1.0前の互換性方針を適用します。現行リリース系列の利用先は通常`^0.2.0`で指定し、両READMEでPackagist登録の有無を明示します。
+The latest release is `v0.3.0` (2026-11-25); the first release was `v0.1.0`. Composer treats a tag without a prerelease suffix as `stable`; the pre-1.0 compatibility policy still applies. Consumer requirements should normally use `^0.3.0` for the current release line. Keep Packagist registration status explicit in both READMEs.
+最新リリースは`v0.3.0`（2026-11-25）、初回は`v0.1.0`です。プレリリースsuffixのないタグはComposerでstableに分類され、APIには1.0前の互換性方針を適用します。現行リリース系列の利用先は通常`^0.3.0`で指定し、両READMEでPackagist登録の有無を明示します。
 
 - Review the changelog and compatibility impact, including minimum PHP/analyzer versions. Run the complete CI matrix on the exact release commit.
   CHANGELOGと互換性影響を確認し、PHP・解析器の最低バージョンも検討します。リリース対象コミットで全CIを通します。

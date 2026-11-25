@@ -224,6 +224,98 @@ $results['dict_merge_typed_keys'] = [
 if ($dictionary->toPairs() !== $pairs || $rightDictionary->toPairs() !== $rightPairs) {
     throw new RuntimeException('Dictionary operations must leave both input snapshots unchanged.');
 }
+unset($rightDictionary, $rightPairs, $expectedMerged, $newPairs);
+
+$expectedGroups = [];
+$expectedRejected = [];
+foreach ($pairs as [$key, $value]) {
+    $group = is_int($key) ? $value % 4 : (string) ($value % 4);
+    $encoded = (is_int($group) ? 'i:' : 's:') . $group;
+    if (!isset($expectedGroups[$encoded])) {
+        $expectedGroups[$encoded] = [$group, []];
+    }
+    $expectedGroups[$encoded][1][] = [$key, $value];
+    if (!is_string($key) || $value % 2 !== 0) {
+        $expectedRejected[] = [$key, $value];
+    }
+}
+$expectedGroups = array_values($expectedGroups);
+$results['dict_group_by_typed_keys'] = [
+    'native_encoded_pair_loop' => $measure(static function () use ($pairs): array {
+        $groups = [];
+        foreach ($pairs as [$key, $value]) {
+            $group = is_int($key) ? $value % 4 : (string) ($value % 4);
+            $encoded = (is_int($group) ? 'i:' : 's:') . $group;
+            if (!isset($groups[$encoded])) {
+                $groups[$encoded] = [$group, []];
+            }
+            $groups[$encoded][1][] = [$key, $value];
+        }
+        return array_values($groups);
+    }, $expectedGroups, $iterations),
+    'dict_group_by' => $measure(
+        static fn (): array => $dictionary
+            ->groupBy(keyOf: static fn (int $value, int|string $key): int|string =>
+                is_int($key) ? $value % 4 : (string) ($value % 4))
+            ->mapValues(mapper: static fn (Dict $group): array => $group->toPairs())
+            ->toPairs(),
+        $expectedGroups,
+        $iterations,
+    ),
+];
+unset($expectedGroups);
+$results['dict_partition_typed_keys'] = [
+    'native_pair_loop' => $measure(static function () use ($pairs): array {
+        $accepted = [];
+        $rejected = [];
+        foreach ($pairs as [$key, $value]) {
+            if (is_string($key) && $value % 2 === 0) {
+                $accepted[] = [$key, $value];
+            } else {
+                $rejected[] = [$key, $value];
+            }
+        }
+        return [$accepted, $rejected];
+    }, [$expectedFiltered, $expectedRejected], $iterations),
+    'dict_partition' => $measure(static function () use ($dictionary): array {
+        [$accepted, $rejected] = $dictionary->partition(
+            predicate: static fn (int $value, int|string $key): bool => is_string($key) && $value % 2 === 0,
+        );
+        return [$accepted->toPairs(), $rejected->toPairs()];
+    }, [$expectedFiltered, $expectedRejected], $iterations),
+];
+unset($expectedRejected, $expectedFiltered);
+$expectedExpanded = [];
+foreach ($pairs as [$key, $value]) {
+    $expectedExpanded[] = [$key, $value];
+    $expectedExpanded[] = ['extra:' . (is_int($key) ? 'i:' : 's:') . $key, -$value];
+}
+$results['dict_flat_map_typed_keys'] = [
+    'native_unique_pair_loop' => $measure(static function () use ($pairs): array {
+        $expanded = [];
+        foreach ($pairs as [$key, $value]) {
+            foreach ([[$key, $value], ['extra:' . (is_int($key) ? 'i:' : 's:') . $key, -$value]] as $pair) {
+                $encoded = (is_int($pair[0]) ? 'i:' : 's:') . $pair[0];
+                if (isset($expanded[$encoded])) {
+                    throw new InvalidArgumentException('Duplicate benchmark output key.');
+                }
+                $expanded[$encoded] = $pair;
+            }
+        }
+        return array_values($expanded);
+    }, $expectedExpanded, $iterations),
+    'dict_flat_map' => $measure(
+        static fn (): array => $dictionary->flatMap(mapper: static fn (int $value, int|string $key): array => [
+            [$key, $value],
+            ['extra:' . (is_int($key) ? 'i:' : 's:') . $key, -$value],
+        ])->toPairs(),
+        $expectedExpanded,
+        $iterations,
+    ),
+];
+if ($dictionary->toPairs() !== $pairs) {
+    throw new RuntimeException('Dictionary extensions must leave the input snapshot unchanged.');
+}
 
 echo json_encode([
     'environment' => [
@@ -231,6 +323,7 @@ echo json_encode([
         'os' => PHP_OS_FAMILY,
         'architecture' => php_uname('m'),
         'xdebug_loaded' => extension_loaded('xdebug'),
+        'memory_limit' => ini_get('memory_limit'),
         'opcache_cli' => ini_get('opcache.enable_cli'),
         'jit' => ini_get('opcache.jit'),
         'jit_buffer_size' => ini_get('opcache.jit_buffer_size'),

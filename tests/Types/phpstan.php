@@ -8,6 +8,7 @@ use Catenary\Dict;
 use Catenary\Option;
 use Catenary\Stream;
 use Catenary\Vec;
+use Generator;
 
 use function PHPStan\Testing\assertType;
 
@@ -126,4 +127,83 @@ function inference(array $numbers, array $strings, ?string $nullable, int $numbe
     assertType('Catenary\\Dict<never, never>', Dict::empty());
     assertType('Catenary\\Dict<never, never>', Dict::fromPairs([]));
     assertType('Catenary\\Stream<*NEVER*>', Stream::fromFactory(fn (): array => []));
+}
+
+
+/**
+ * Checks dictionary extensions without replacing their inferred result types.
+ * 辞書拡張の結果型を注釈で置き換えず、推論した型を検査します。
+ *
+ * @param int $number
+ * @param string $text
+ * @param string|null $nullable
+ * @return void
+ */
+function dictExtensionInference(int $number, string $text, ?string $nullable): void
+{
+    $dict = Dict::fromPairs(pairs: [[$text, $number]]);
+    assertType(
+        'Catenary\\Dict<string, Catenary\\Dict<string, int>>',
+        $dict->groupBy(keyOf: fn (int $value, string $key): string => $key),
+    );
+    assertType(
+        'Catenary\\Dict<int|string, Catenary\\Dict<string, int>>',
+        $dict->groupBy(keyOf: fn (int $value): int|string => $value > 0 ? $number : $text),
+    );
+    assertType(
+        'array{Catenary\\Dict<string, int>, Catenary\\Dict<string, int>}',
+        $dict->partition(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== ''),
+    );
+    assertType(
+        'Catenary\\Dict<int, string>',
+        $dict->flatMap(mapper: fn (int $value, string $key): array => [[$value, $key]]),
+    );
+    assertType(
+        'Catenary\\Dict<int, string>',
+        $dict->flatMap(mapper: fn (int $value, string $key): Dict => Dict::fromPairs(pairs: [[$value, $key]])),
+    );
+    assertType(
+        'Catenary\\Dict<int, string>',
+        $dict->flatMap(mapper: static function (int $value, string $key): Generator {
+            yield [$value, $key];
+        }),
+    );
+    assertType('int', $dict->count());
+    assertType('int', $dict->count(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== ''));
+    assertType('float|int', $dict->sum());
+    assertType('string', $dict->mkString(formatter: fn (int $value, string $key): string => $key . $value));
+    assertType('array<string, int>', $dict->toArray());
+    assertType('int|string', $dict->getOrDefault(key: $text, default: $text));
+    assertType('int|null', $dict->getOrDefault(key: $text, default: null));
+    $nullableDict = Dict::fromPairs(pairs: [[$number, $nullable], [$text, null]]);
+    assertType('int|string|null', $nullableDict->getOrDefault(key: $text, default: $number));
+    assertType('array<int|string, string|null>', $nullableDict->toArray());
+    assertType(
+        'Catenary\\Dict<int, Catenary\\Dict<int|string, string|null>>',
+        $nullableDict->groupBy(keyOf: fn (?string $value, int|string $key): int => $number),
+    );
+    assertType('Catenary\\Dict<never, never>', $dict->flatMap(mapper: fn (): array => []));
+    assertType(
+        'Catenary\\Dict<never, never>',
+        $dict->flatMap(mapper: fn (int $value, string $key): array => []),
+    );
+    assertType(
+        'Catenary\\Dict<string, Catenary\\Dict<never, never>>',
+        Dict::empty()->groupBy(keyOf: fn (): string => $text),
+    );
+    assertType(
+        'array{Catenary\\Dict<never, never>, Catenary\\Dict<never, never>}',
+        Dict::empty()->partition(predicate: fn (): bool => true),
+    );
+    assertType('array{}', Dict::empty()->toArray());
+    assertType('string', Dict::empty()->getOrDefault(key: $text, default: $text));
+    $defaultClosure = fn (): string => $text;
+    $preservedClosure = Dict::empty()->getOrDefault(key: $text, default: $defaultClosure);
+    assertType('Closure(): string', $preservedClosure);
+    assertType('string', $preservedClosure());
+    $wide = $dict->with(key: $number, value: $text);
+    assertType(
+        'array{Catenary\\Dict<int|string, int|string>, Catenary\\Dict<int|string, int|string>}',
+        $wide->partition(predicate: fn (int|string $value, int|string $key): bool => $value === $key),
+    );
 }

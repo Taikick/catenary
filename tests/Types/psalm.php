@@ -8,6 +8,7 @@ use Catenary\Dict;
 use Catenary\Option;
 use Catenary\Stream;
 use Catenary\Vec;
+use Generator;
 
 /**
  * Checks Psalm's inferred generic types without replacing them using inline type overrides.
@@ -149,4 +150,76 @@ function psalmInference(array $numbers, array $strings, ?string $nullable, int $
     $emptyStream = Stream::fromFactory(fn (): array => []);
     /** @psalm-check-type-exact $emptyStream = Stream<never> */
     echo count($emptyVec);
+}
+
+
+/**
+ * Checks dictionary extensions and the exact types of empty and nullable results.
+ * 辞書拡張と空・nullを含む結果の正確な型を検査します。
+ *
+ * @param int $number
+ * @param string $text
+ * @param string|null $nullable
+ * @return void
+ */
+function psalmDictExtensionInference(int $number, string $text, ?string $nullable): void
+{
+    $dict = Dict::fromPairs(pairs: [[$text, $number]]);
+    $groups = $dict->groupBy(keyOf: fn (int $value, string $key): string => $key);
+    /** @psalm-check-type-exact $groups = Dict<string, Dict<string, int>> */
+    $mixedGroups = $dict->groupBy(keyOf: fn (int $value): int|string => $value > 0 ? $number : $text);
+    /** @psalm-check-type-exact $mixedGroups = Dict<int|string, Dict<string, int>> */
+    $partition = $dict->partition(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== '');
+    /** @psalm-check-type-exact $partition = array{Dict<string, int>, Dict<string, int>} */
+    $pairs = $dict->flatMap(mapper: fn (int $value, string $key): array => [[$value, $key]]);
+    /** @psalm-check-type-exact $pairs = Dict<int, string> */
+    $dictionaries = $dict->flatMap(
+        mapper: fn (int $value, string $key): Dict => Dict::fromPairs(pairs: [[$value, $key]]),
+    );
+    /** @psalm-check-type-exact $dictionaries = Dict<int, string> */
+    $generatedPairs = $dict->flatMap(mapper: static function (int $value, string $key): Generator {
+        yield [$value, $key];
+    });
+    /** @psalm-check-type-exact $generatedPairs = Dict<int, string> */
+    $count = $dict->count();
+    /** @psalm-check-type-exact $count = int */
+    $matchingCount = $dict->count(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== '');
+    /** @psalm-check-type-exact $matchingCount = int */
+    $total = $dict->sum();
+    /** @psalm-check-type-exact $total = int|float */
+    $formatted = $dict->mkString(formatter: fn (int $value, string $key): string => $key . $value);
+    /** @psalm-check-type-exact $formatted = string */
+    $native = $dict->toArray();
+    /** @psalm-check-type-exact $native = array<string, int> */
+    $defaultValue = $dict->getOrDefault(key: $text, default: $text);
+    /** @psalm-check-type-exact $defaultValue = int|string */
+    $defaultNull = $dict->getOrDefault(key: $text, default: null);
+    /** @psalm-check-type-exact $defaultNull = int|null */
+    $nullableDict = Dict::fromPairs(pairs: [[$number, $nullable], [$text, null]]);
+    $nullableDefault = $nullableDict->getOrDefault(key: $text, default: $number);
+    /** @psalm-check-type-exact $nullableDefault = int|null|string */
+    $nativeNullable = $nullableDict->toArray();
+    /** @psalm-check-type-exact $nativeNullable = array<int|string, null|string> */
+    $nullableGroups = $nullableDict->groupBy(keyOf: fn (?string $value, int|string $key): int => $number);
+    /** @psalm-check-type-exact $nullableGroups = Dict<int, Dict<int|string, null|string>> */
+    $flatEmpty = $dict->flatMap(mapper: fn (): array => []);
+    /** @psalm-check-type-exact $flatEmpty = Dict<never, never> */
+    $flatEmptyWithArguments = $dict->flatMap(mapper: fn (int $value, string $key): array => []);
+    /** @psalm-check-type-exact $flatEmptyWithArguments = Dict<never, never> */
+    $emptyGroups = Dict::empty()->groupBy(keyOf: fn (): string => $text);
+    /** @psalm-check-type-exact $emptyGroups = Dict<string, Dict<never, never>> */
+    $emptyPartition = Dict::empty()->partition(predicate: fn (): bool => true);
+    /** @psalm-check-type-exact $emptyPartition = array{Dict<never, never>, Dict<never, never>} */
+    $emptyNative = Dict::empty()->toArray();
+    /** @psalm-check-type-exact $emptyNative = array<never, never> */
+    $emptyDefault = Dict::empty()->getOrDefault(key: $text, default: $text);
+    /** @psalm-check-type-exact $emptyDefault = string */
+    $defaultClosure = fn (): string => $text;
+    $preservedClosure = Dict::empty()->getOrDefault(key: $text, default: $defaultClosure);
+    /** @psalm-check-type-exact $preservedClosure = pure-Closure():string */
+    $closureResult = $preservedClosure();
+    /** @psalm-check-type-exact $closureResult = string */
+    $wide = $dict->with(key: $number, value: $text);
+    $widePartition = $wide->partition(predicate: fn (int|string $value, int|string $key): bool => $value === $key);
+    /** @psalm-check-type-exact $widePartition = array{Dict<int|string, int|string>, Dict<int|string, int|string>} */
 }

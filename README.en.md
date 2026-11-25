@@ -7,7 +7,7 @@ Typed method chains for PHP arrays and iterables: transform, filter, search and 
 
 **PHP 8.3+, MIT licensed, zero runtime dependencies.** PHPStan and Psalm inference is covered by tests. No framework integration is required.
 
-**Latest release: `v0.2.0` (2026-11-25).** This is a pre-1.0 API: minor versions may introduce breaking changes, while patches remain compatible. The package is not registered on Packagist; install the tagged version using the VCS configuration below. Existing users should read the [rename migration guide](docs/migration-to-catenary.md#english).
+**Latest release: `v0.3.0` (2026-11-25).** This is a pre-1.0 API: minor versions may introduce breaking changes, while patches remain compatible. The package is not registered on Packagist; install the tagged version using the VCS configuration below. Existing users should read the [rename migration guide](docs/migration-to-catenary.md#english).
 
 ## Transform and filter values
 
@@ -125,6 +125,48 @@ Predicates receive value then key. `filter` visits all entries; `find`, `any` an
 
 `merge` takes the right-hand value for each matching typed key while keeping its original left-hand position. New keys append in right-hand order, and neither input dictionary changes. See the [API contracts](docs/contracts.md#dictキーの型を区別する辞書) for evaluation counts, types and complexity.
 
+### Group, expand and export dictionaries
+
+These eight APIs were added or extended in `v0.3.0`.
+
+```php
+use Catenary\Dict;
+
+$amounts = Dict::fromPairs(pairs: [['base', 100], ['extra', 50], ['refund', -20]]);
+
+$amounts->groupBy(keyOf: fn (int $amount): string => $amount >= 0 ? 'income' : 'refund')
+    ->get(key: 'income')->getOrThrow()->toPairs(); // [['base', 100], ['extra', 50]]
+[$income, $refund] = $amounts->partition(predicate: fn (int $amount): bool => $amount >= 0);
+$income->toPairs(); // [['base', 100], ['extra', 50]]
+$refund->toPairs(); // [['refund', -20]]
+
+$amounts->flatMap(mapper: fn (int $amount, string $key): array => [
+    [$key, $amount],
+    [$key . ':double', $amount * 2],
+])->toPairs(); // [['base', 100], ['base:double', 200], ['extra', 50], ...]
+
+$amounts->count(predicate: fn (int $amount): bool => $amount > 0); // 2
+$amounts->sum(); // 130
+$amounts->mkString(
+    formatter: fn (int $amount, string $key): string => $key . '=' . $amount,
+    separator: ', ',
+    prefix: '[',
+    suffix: ']',
+); // '[base=100, extra=50, refund=-20]'
+$amounts->toArray(); // ['base' => 100, 'extra' => 50, 'refund' => -20]
+$amounts->getOrDefault(key: 'missing', default: 0); // 0
+
+Dict::fromPairs(pairs: [['memo', null]])->getOrDefault(key: 'memo', default: 'missing'); // null
+```
+
+`groupBy` returns `Dict<GroupKey, Dict<OriginalKey, OriginalValue>>`. Groups appear in first-seen order; each inner dictionary preserves original keys, insertion order and null values. `partition` returns accepted and rejected dictionaries without losing keys. Each callback receives value then key, once per entry.
+
+`flatMap` eagerly flattens one level of an `iterable` of `[key, value]` pairs. Mappers may return a list of pairs, a generator or a Dict. Return pairs such as `[['key', $value]]`, not a plain associative array. Repeating the same strictly typed key throws `InvalidArgumentException` instead of silently replacing a value.
+
+Argument-free `count()` and PHP's `count($dict)` still return the size in constant time. With a predicate, every entry is tested once. `sum()` adds only int/float values in insertion order, returning integer zero on empty and throwing `TypeError` for nonnumeric values. Numeric strings, bool and null are not coerced. Its return type is `int|float` because integer overflow may produce a float. `mkString` requires an explicit string formatter and returns just prefix plus suffix on empty.
+
+`toArray()` rejects conversions that would change a key's type. For example, PHP arrays turn the string key `'1'` into integer 1, so even that key alone causes `InvalidArgumentException`. Use `toPairs()` for lossless storage or transport of such keys. `getOrDefault` uses its default only when the key is missing, preserving present null values. A callable default is returned as a value, never invoked. For lazy defaults, use the existing `get(...)->getOrElse(...)` chain.
+
 ## Generate values on demand
 
 ```php
@@ -157,7 +199,7 @@ Add the VCS repository and tagged-version requirement to the consuming project's
     "repositories": [
         {"type": "vcs", "url": "https://github.com/Taikick/catenary"}
     ],
-    "require": {"catenary/collections": "^0.2.0"}
+    "require": {"catenary/collections": "^0.3.0"}
 }
 ```
 
@@ -165,7 +207,7 @@ Add the VCS repository and tagged-version requirement to the consuming project's
 composer update catenary/collections --with-dependencies
 ```
 
-`^0.2.0` allows versions from `0.2.0` up to, but excluding, `0.3.0`. Composer classifies the suffix-free `v0.2.0` tag as `stable`. API compatibility follows the [pre-1.0 policy](CONTRIBUTING.md#compatibility--互換性). Review and commit the resulting `composer.lock`; use `composer install` for deployment. Follow the [migration guide](docs/migration-to-catenary.md#english) when upgrading from the previous package name.
+`^0.3.0` allows versions from `0.3.0` up to, but excluding, `0.4.0`. Composer classifies the suffix-free `v0.3.0` tag as `stable`. API compatibility follows the [pre-1.0 policy](CONTRIBUTING.md#compatibility--互換性). Review and commit the resulting `composer.lock`; use `composer install` for deployment. Follow the [migration guide](docs/migration-to-catenary.md#english) when upgrading from the previous package name.
 
 Use `dev-main` only when intentionally trying unreleased changes, and keep the reviewed commit in the consuming project's `composer.lock`. The `main` branch may contain changes made after the latest tag.
 

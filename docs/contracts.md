@@ -80,14 +80,24 @@ take/dropの負数、chunkの0以下は即座に`InvalidArgumentException`にな
 `filter`・`find`・`any`・`every`・`fold`・`merge`は`v0.2.0`で追加しました。
 `filter`, `find`, `any`, `every`, `fold` and `merge` were added in `v0.2.0`.
 
+`groupBy`・`partition`・`flatMap`・述語付き`count`・`sum`・`mkString`・`toArray`・`getOrDefault`は`v0.3.0`で追加・拡張しました。
+`groupBy`, `partition`, `flatMap`, predicate-based `count`, `sum`, `mkString`, `toArray` and `getOrDefault` were added or extended in `v0.3.0`.
+
 | API | Behavior / 動作 | Time / 時間 |
 | --- | --- | --- |
 | `empty()`, `fromPairs(pairs)` | Empty or insertion-ordered creation / 空または挿入順の構築 | O(1), expected O(n) |
 | `has(key)`, `get(key)` | Strict key lookup; present null stays Some / キーの型を区別しnullも存在として保持 | Expected O(1) |
-| `count()`, `isEmpty()` | Size queries / 件数の判定 | O(1) |
+| `count()`, `count(null)`, `isEmpty()` | Size queries; PHP `count($dict)` unchanged / 件数の判定、PHPのcountも従来どおり | O(1) |
+| `count(predicate)` | Count matches after testing every entry once / 全件を一回判定して一致件数を返す | O(n) + callbacks |
+| `getOrDefault(key, default)` | Missing-only value fallback; null and callable values preserved / 欠損時だけ既定値を返し、null・callableを値として保持 | Expected O(1) |
 | `with(key, value)` | Explicit replacement or insertion; preserves old position / 明示的な置換または追加・既存位置を保持 | O(n) copying |
 | `without(key)` | Remove key; missing is harmless / キーを除去・未登録でも正常終了 | O(n) copying |
 | `mapValues(mapper)` | Mapper receives `(value, key)` / 値・キーの順で変換 | O(n) + callbacks |
+| `groupBy(keyOf)` | `Dict<G, Dict<K, V>>`; strict group keys and original inner keys / グループ・元キーとも型を区別し内側も辞書にする | Expected O(n) + callbacks / 期待O(n) |
+| `partition(predicate)` | `[accepted, rejected]` dictionaries; original keys/order / 元キーと順序を保持して合致・非合致の辞書へ分割 | O(n) + callbacks |
+| `flatMap(mapper)` | Eager one-level expansion of pairs; duplicate typed keys throw / 組を一段だけ即時展開し型の等しい重複キーを拒否 | Expected O(n + m) + callbacks / 出力m件、期待O(n + m) |
+| `sum()` | Strict int/float addition; empty is int 0 / int・floatだけを加算し空なら整数0 | O(n) |
+| `mkString(formatter, separator, prefix, suffix)` | Explicit `(value, key): string` formatting; empty is prefix + suffix / 明示的に文字列化し、空なら接頭辞と接尾辞だけ | O(n + L) + callbacks / 出力Lバイト |
 | `filter(predicate)` | Keep matching entries and their original key types/order; eager / キーの型・順序を保ち条件に合う登録を即時抽出 | O(n) + callbacks |
 | `find(predicate)` | First matching `[key, value]` as `Option<array{K, V}>`; empty/missing is None / 最初に一致する組を返し、空・一致なしは欠損 | Worst O(n) + callbacks; short-circuit / 最悪O(n)、短絡 |
 | `any(predicate)` | First match returns true; empty is false / 最初の一致でtrue、空はfalse | Worst O(n) + callbacks; short-circuit / 最悪O(n)、短絡 |
@@ -96,6 +106,7 @@ take/dropの負数、chunkの0以下は即座に`InvalidArgumentException`にな
 | `merge(other)` | Right-hand values replace matching typed keys at their original positions; new keys append / 同じ型のキーは右側の値で既存位置を置換し、新しいキーは末尾へ追加 | Expected O(n + m) / 期待O(n + m) |
 | `keys()`, `values()` | Ordered Vec views / 順序付きVecを返す | O(n) |
 | `toPairs()`, `getIterator()` | `[key, value]` pairs; lossless key types / 型を損なわないキーと値の組 | O(n) |
+| `toArray()` | Native array only if every key retains its type; coercion throws / 全キーの型を保持できる場合だけPHP配列へ変換 | Expected O(n) / 期待O(n) |
 
 Duplicates are rejected during bulk construction, even if the previous value is null. Removing and reinserting a key moves it to the end. Hash complexity assumes ordinary PHP hash-table behavior and bounded key length; hashing long strings also costs their length.
 一括構築での重複は先行値がnullでも拒否します。除去後に再挿入したキーは末尾に移動します。ハッシュの計算量は通常のPHPハッシュテーブルと有界なキー長を前提とし、長い文字列のハッシュには文字列長に応じたコストがかかります。
@@ -108,6 +119,29 @@ Dictの述語は`callable(V, K): bool`で、挿入順に訪問した各登録を
 
 `merge` explicitly replaces values, like repeated `with`, while combining the dictionaries in one operation. Exact typed-key matches use the right-hand value, including null, without moving the existing left-hand position. Right-hand keys absent on the left append in right-hand insertion order. Integer `1` and string `'1'` remain separate, and neither input dictionary changes. Merging `Dict<K, V>` with `Dict<KOther, VOther>` yields `Dict<K|KOther, V|VOther>`. The result retains at most O(n + m) entries; values are not deep-copied. This avoids the repeated whole-dictionary copies of a loop calling `with`.
 `merge`は`with`と同様に明示的に値を置換し、二つの辞書を一回の操作で結合します。型も同じキーにはnullを含む右側の値を使い、左側の既存位置は動かしません。左側にない右側のキーは、右側の挿入順で末尾へ追加します。整数`1`と文字列`'1'`は別のキーとして保持し、どちらの入力も変更しません。`Dict<K, V>`と`Dict<KOther, VOther>`の結合結果は`Dict<K|KOther, V|VOther>`です。出力の保持領域は最大O(n + m)で、値の深いコピーは行いません。`with`をループで繰り返す場合の辞書全体の反復コピーを避けられます。
+
+### 分類・展開・集計・出力の契約 / Grouping, expansion, aggregation and export
+
+`groupBy` accepts `callable(V, K): G`, with G restricted to int|string, and returns `Dict<G, Dict<K, V>>`. Groups follow the order of their first occurrence. Each inner dictionary retains original key types, relative insertion order and null values. Integer group key `1` differs from string `'1'`. `partition` returns `array{Dict<K, V>, Dict<K, V>}` in accepted/rejected order. Both operations visit every source entry once, preserve the original pair even if a callback changes its local arguments by reference, and keep O(n) total entries plus group containers. Empty input yields an empty grouping dictionary or two empty dictionaries without invoking callbacks.
+`groupBy`は`callable(V, K): G`を受け取り、Gをint|stringに限定して`Dict<G, Dict<K, V>>`を返します。グループは最初の出現順で、各内側辞書は元のキー型・相対的な挿入順・nullを保持します。グループキーの整数`1`と文字列`'1'`も別です。`partition`は合致・非合致の順に`array{Dict<K, V>, Dict<K, V>}`を返します。両方とも元の各項目を一回だけ訪問し、コールバックがローカル引数を参照渡しで変更しても元の組を保持します。合計O(n)件とグループのコンテナを保持し、空ならコールバックを呼ばず空の分類辞書または二つの空辞書を返します。
+
+`flatMap` accepts `callable(V, K): iterable<mixed, array{KNew, VNew}>`, with KNew restricted to int|string, and returns `Dict<KNew, VNew>`. It visits source entries in insertion order and completely consumes each returned iterable before invoking the next mapper. Inner iterable indexes are discarded; the keys inside its pairs are retained. A Dict is itself a suitable iterable of pairs. Empty iterables omit an entry; an empty source does not invoke the mapper. Repeated strictly typed output keys throw `InvalidArgumentException`, even when an earlier value is null, matching `fromPairs` rather than the replacement behavior of `merge`. Output retains O(m) entries, excluding input/callback allocations. An exception returns no partial result and propagates unchanged; callback side effects are not rolled back. Infinite inner iterables cannot complete.
+`flatMap`は`callable(V, K): iterable<mixed, array{KNew, VNew}>`を受け取り、KNewをint|stringに限定して`Dict<KNew, VNew>`を返します。元辞書を挿入順で訪問し、返されたiterableを最後まで走査してから次の変換処理を呼びます。内側iterableの添字は捨て、組の中のキーを保持します。Dict自身も組のiterableとして返せます。空のiterableなら出力を省き、元辞書が空なら変換処理を呼びません。型まで一致する出力キーの重複は、先行値がnullでも`InvalidArgumentException`です。上書きする`merge`ではなく`fromPairs`と同じ方針です。出力は入力やコールバックの確保領域を除きO(m)件を保持します。例外はそのまま伝播して部分結果を返さず、コールバックの副作用は巻き戻しません。無限の内側iterableは完了できません。
+
+`count(predicate)` calls `callable(V, K): bool` once per entry, in insertion order, without an intermediate dictionary. It uses O(1) additional container state; empty dictionaries return 0 without invoking the predicate. Omitting the predicate, passing null, or using PHP's `count($dict)` retains the constant-time size query.
+`count(predicate)`は中間辞書を作らず、`callable(V, K): bool`を挿入順で一件につき一回呼びます。追加のコンテナ状態はO(1)、空なら述語を呼ばず0を返します。述語の省略・null指定・PHPの`count($dict)`は、定数時間の全件数取得を維持します。
+
+`sum()` adds int/float values from integer 0 in insertion order, with O(1) extra container state. Numeric strings, bool, null, arrays and objects throw `TypeError` when encountered; it does not follow PHP's permissive numeric coercions. Values are checked at runtime: calling `sum()` on an arbitrary Dict is not statically rejected based on its V parameter. The result is `int|float`, including for integer-only input because [integer overflow produces a float](https://www.php.net/manual/en/language.types.integer.php). Empty dictionaries return int 0. Native floating-point rounding, `NAN` and infinities remain possible; this is not a decimal/money arithmetic API.
+`sum()`は整数0からint/floatの値を挿入順に加算し、追加のコンテナ状態はO(1)です。数値文字列・bool・null・配列・オブジェクトは見つかった時点で`TypeError`になり、PHPの緩い数値変換には従いません。値の数値型は実行時に確認し、任意のDictへの`sum()`呼出し自体をVの型に基づいて静的に拒否するものではありません。[整数の桁あふれはfloatになる](https://www.php.net/manual/en/language.types.integer.php)ため、整数だけでも戻り型は`int|float`です。空なら整数0を返します。浮動小数点の丸め・`NAN`・無限大はPHPの演算どおりに生じ得るため、十進数・金額専用の演算APIではありません。
+
+`mkString` requires `callable(V, K): string`, called once per entry in insertion order; callback return types follow the general static generic contract above. Separator, prefix and suffix default to the empty string. Separators occur only between formatted entries. Empty input does not invoke the formatter and returns prefix + suffix. Formatting is explicit: null, objects, arrays and keys are not implicitly assigned a display meaning. The retained output is O(L) bytes for L output bytes; intermediate formatter/container allocations can add O(n + L). The formatter and its exceptions are evaluated immediately.
+`mkString`は`callable(V, K): string`を必須とし、挿入順で一件につき一回呼びます。コールバックの戻り型は前述の静的なgeneric契約に従います。separator・prefix・suffixの既定値は空文字で、separatorは項目間だけに入ります。空なら文字列化を呼ばずprefixとsuffixだけを返します。null・オブジェクト・配列・キーの表示上の意味を暗黙に決めず、文字列化を明示します。出力LバイトをO(L)で保持し、コールバックや中間コンテナの確保分としてO(n + L)が加わり得ます。文字列化とその例外は呼出し時に即時評価されます。
+
+`toArray()` returns `array<K, V>` in insertion order, with O(n) output storage, only if PHP preserves every original key's type. [Native PHP arrays coerce some numeric string keys to integers](https://www.php.net/manual/en/language.types.array.php). Such keys throw `InvalidArgumentException` even in isolation: `'1'` is rejected, while `'01'`, `'+1'`, nonnumeric strings and integers can be preserved. This rejects type loss before an integer/string collision can silently discard a value. It performs no recursive value conversion and preserves null values. Use `toPairs()` for a lossless representation of every valid Dict key.
+`toArray()`はPHPが元キーの型をすべて保持できる場合だけ、挿入順の`array<K, V>`を返し、O(n)の出力領域を使います。[PHP配列は一部の数値文字列キーを整数へ変換します](https://www.php.net/manual/en/language.types.array.php)。そのため`'1'`は単独でも`InvalidArgumentException`で拒否し、`'01'`・`'+1'`・非数値文字列・整数など型を保持できるキーは変換できます。型の損失そのものを拒否するため、整数/文字列の衝突で値を失うこともありません。値を再帰変換せずnullも保持します。全ての有効なDictキーを損失なく表すには`toPairs()`を使います。
+
+`getOrDefault(key, default)` returns V|D for a default of type D. It looks up the exact typed key and returns a present value unchanged, including null. Only absence returns the supplied default, with no invocation when that default is callable. The default expression is evaluated by PHP before the method call, just like any argument; use `get(key)->getOrElse(fallback)` for lazy creation. The lookup uses O(1) extra container state and does not allocate an Option.
+`getOrDefault(key, default)`は既定値Dに対してV|Dを返します。キーを型も含めて照合し、存在すればnullを含め元の値をそのまま返します。欠損時だけ指定した既定値を返し、callableでも実行しません。既定値の式自体は他の引数と同じく呼出し前にPHPが評価するため、遅延生成には`get(key)->getOrElse(fallback)`を使います。検索時の追加状態はO(1)でOptionを生成しません。
 
 ## Stream：必要な分だけ遅延評価
 
