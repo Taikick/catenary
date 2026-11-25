@@ -36,6 +36,9 @@ Public classes live in `Catenary`. `Internal` is not a supported extension API.
 | `filter(predicate)` | Keeps matching Some / 条件に合う値を保持 |
 | `fold(ifNone, ifSome)` | Exactly one branch executes / 対応する一方の分岐を実行 |
 
+`fromNullable(null)`と、返値型が`null`だけの`mapNullable`は、PHPStan・Psalmのどちらでも`Option<never>`と推論します。その後の`getOrElse`は代替処理の型を保持し、存在しない値の`mixed`や`null`を戻り型へ混ぜません。nullableな入力ではnullを除いた型を保持し、明示的な`some(null)`は従来どおり`Option<null>`です。
+Both analyzers infer `Option<never>` for null-only nullable conversions, so `getOrElse` retains the fallback's result type. Nullable unions exclude null from the present type; explicit `some(null)` remains `Option<null>`.
+
 Each operation performs constant container work plus at most one callback.
 コンテナ自体の処理は定数時間で、コールバックは高々一回実行します。
 

@@ -5,7 +5,7 @@ This repository is the framework-independent MIT package `catenary/collections`.
 
 ## Read first / 最初に読む
 
-- `README.md` / `README.en.md`: Japanese-first public usage, English translation and development-preview status. `README.ja.md` remains a compatibility entry linking to the Japanese README.
+- `README.md` / `README.en.md`: Japanese-first public usage, English translation, current release and Packagist registration status. `README.ja.md` remains a compatibility entry linking to the Japanese README.
 - `docs/contracts.md`: evaluation, null/key semantics, callback behavior and complexity.
 - `CONTRIBUTING.md`: compatibility, analyzer baselines and release procedure.
 - `docs/migration-to-catenary.md`: the breaking package/namespace rename, consumer lockfiles and serialization boundaries.
@@ -23,6 +23,9 @@ This repository is the framework-independent MIT package `catenary/collections`.
 - Keep the existing PHPUnit runner. Test behaviors with the current suite rather than changing test frameworks during an API or documentation change.
 
 振る舞い・型推論の失敗から修正し、誤用の拒否も検証します。全クラス・メソッドに英日説明、全引数に@param、戻り値に@returnを付けます。PHPDoc内のクラス型は先頭のバックスラッシュを含むFQCNとし、実行コードではimportを使います。宣言したtemplate・aliasや型推論の精度を保ち、注釈による上書きで推論テストを通しません。既知の自前API呼出しは名前付き引数を基本とし、外部・可変長・動的な呼出しは例外です。テストランナーは既存のPHPUnitを維持します。不変性は浅く、反復追加には配列コピーのコストがあるという契約も保ちます。
+
+Run these commands from a Git clone; distribution archives omit tests, development tools and the development lockfile.
+以下はGitでcloneした作業コピーで実行します。配布archiveにはテスト・開発ツール・開発用lockfileを含めません。
 
 ```sh
 composer install
@@ -43,6 +46,9 @@ Native and generic types, variance, parameter names, callback counts/order, exce
 
 Describe PHP collection operations directly in public documentation. Keep the Japanese and English guides aligned; avoid positioning the package as another library's replacement. The canonical names are `catenary/collections`, `Catenary` and `Taikick/catenary`. Old names belong in migration documentation only; they do not authorize editing historical lockfile references or adding compatibility aliases.
 公開文書はPHPのコレクション操作を直接説明し、日本語と英語の内容を揃えます。他ライブラリの代替という訴求は行いません。正式名称は`catenary/collections`・`Catenary`・`Taikick/catenary`です。旧名は移行説明に限定し、過去のlockfileのrevisionを手書き変更したり互換aliasを追加したりしません。
+
+Keep tagged releases, unreleased `main` changes and Packagist registration distinct. Verify the candidate commit or unpublished local tag and its distribution archive before publishing the same commit SHA; never move a published tag.
+タグ版・mainの未リリース変更・Packagist登録を区別します。候補コミットまたは未公開のローカルタグと配布archiveを検証し、同じSHAを公開します。公開済みタグは変更しません。
 
 Follow the current request's authorization for commit/push. A prior push does not authorize later releases, Packagist publication or changes to consuming applications.
 commit/pushは現在の依頼範囲に従い、過去の許可を将来のリリース・Packagist公開・利用アプリの変更へ拡張しません。

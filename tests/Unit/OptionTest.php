@@ -46,6 +46,37 @@ final class OptionTest extends TestCase
     }
 
     /**
+     * Evaluates null-only mapping and its fallback once while preserving explicit Some(null).
+     * nullだけを返す変換と代替処理を各一度評価し、明示したSome(null)を保持します。
+     *
+     * @return void
+     */
+    public function testNullOnlyMappingAndFallback(): void
+    {
+        // GIVEN: a nullable conversion and an explicit present null use different contracts.
+        $maps = $fallbacks = 0;
+        $mapper = function () use (&$maps): null {
+            ++$maps;
+            return null;
+        };
+        $fallback = function () use (&$fallbacks): string {
+            ++$fallbacks;
+            return 'missing';
+        };
+
+        // WHEN: null-only results are consumed through the lazy fallback.
+        $direct = Option::fromNullable(value: null)->getOrElse(fallback: $fallback);
+        $mapped = Option::some(value: 1)->mapNullable(mapper: $mapper)->getOrElse(fallback: $fallback);
+        $absent = Option::none()->mapNullable(mapper: $mapper)->getOrElse(fallback: $fallback);
+        $presentNull = Option::some(value: null)->getOrElse(fallback: $fallback);
+
+        // THEN: only the present branch maps, and only absent values evaluate the fallback.
+        self::assertSame(['missing', 'missing', 'missing', null], [$direct, $mapped, $absent, $presentNull]);
+        self::assertSame(1, $maps);
+        self::assertSame(3, $fallbacks);
+    }
+
+    /**
      * Distinguishes ordinary mapping from nullable mapping.
      * 通常の変換とnullを欠損へ変換する操作の違いを検証します。
      *

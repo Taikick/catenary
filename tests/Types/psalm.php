@@ -56,6 +56,14 @@ function psalmInference(array $numbers, array $strings, ?string $nullable, int $
     /** @psalm-check-type-exact $sum = int */
     $option = Option::fromNullable(value: $nullable);
     /** @psalm-check-type-exact $option = Option<string> */
+    $nullOnly = Option::fromNullable(value: null);
+    /** @psalm-check-type-exact $nullOnly = Option<never> */
+    $nullOnlyFallback = $nullOnly->getOrElse(fallback: fn (): string => $text);
+    /** @psalm-check-type-exact $nullOnlyFallback = string */
+    $nullOnlyMap = Option::some(value: $number)->mapNullable(mapper: fn (): null => null);
+    /** @psalm-check-type-exact $nullOnlyMap = Option<never> */
+    $nullOnlyMapFallback = $nullOnlyMap->getOrElse(fallback: fn (): string => $text);
+    /** @psalm-check-type-exact $nullOnlyMapFallback = string */
     $presentNull = Option::some(value: null);
     /** @psalm-check-type-exact $presentNull = Option<null> */
     $absent = Option::none();

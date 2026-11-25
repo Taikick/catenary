@@ -6,6 +6,9 @@ Maintain the Japanese-first [README](README.md), [English guide](README.en.md), 
 
 ## Development contract / 開発契約
 
+Work in a Git clone of the repository. Distribution archives omit tests, development tools and the root lockfile; run the development commands below from the clone.
+開発はGitでcloneした作業コピーで行います。配布archiveにはテスト・開発ツール・ルートのlockfileを含めないため、以下の開発コマンドはclone先で実行します。
+
 1. Add a failing behavior or inference test before changing implementation. Fix defects with a regression test.
    実装変更前に失敗する動作または推論のテストを追加し、不具合には再発防止テストを付けます。
 2. Run `composer check`. For a performance change, also run `composer bench` and retain the environment and output validation.
@@ -33,12 +36,15 @@ Catenaryへの改名は、旧クラスaliasを提供しない開発版の破壊�
 
 ## Release procedure / リリース手順
 
+The first release is `v0.1.0` (2026-11-25). Composer treats a tag without a prerelease suffix as `stable`; the pre-1.0 compatibility policy still applies. Consumer requirements should normally use `^0.1.0` for the initial release line. Keep Packagist registration status explicit in both READMEs.
+初回リリースは`v0.1.0`（2026-11-25）です。プレリリースsuffixのないタグはComposerでstableに分類され、APIには1.0前の互換性方針を適用します。初期リリース系列の利用先は通常`^0.1.0`で指定し、両READMEでPackagist登録の有無を明示します。
+
 - Review the changelog and compatibility impact, including minimum PHP/analyzer versions. Run the complete CI matrix on the exact release commit.
   CHANGELOGと互換性影響を確認し、PHP・解析器の最低バージョンも検討します。リリース対象コミットで全CIを通します。
-- Validate a Composer installation from the candidate tag in a separate consuming project, without development dependencies. Run the shipped example and consuming products' regression suites.
-  候補タグから独立した利用プロジェクトへ開発依存なしで導入し、同梱例と利用プロダクトの回帰テストを実行します。
-- Create the release tag and release notes only after review. Packagist registration/release publication is a separate maintainer operation; CI never publishes automatically.
-  レビュー後にタグとリリースノートを作成します。Packagist登録・公開は別途メンテナが操作し、CIから自動公開しません。
+- Build the distribution archive from the candidate commit or an unpublished local candidate tag. Validate its Composer installation in a separate consuming project without development dependencies, its public documentation links and the shipped example. Run consuming products' regression suites when applicable, recording the exact commit SHA.
+  候補コミットまたは未公開のローカル候補タグから配布archiveを作り、独立した利用プロジェクトへの開発依存なしのComposer導入・公開文書のリンク・同梱例を検証します。該当する利用プロダクトの回帰テストも実行し、検証したコミットSHAを記録します。
+- After review, publish the release tag at that exact verified commit and add release notes. Changes after verification require a new verification before publication. Never move a published tag. Packagist registration is a separate maintainer operation; CI never publishes automatically.
+  レビュー後、検証済みと同じSHAを指すリリースタグを公開し、リリースノートを追加します。検証後に変更した場合は公開前に再検証し、公開済みタグは動かしません。Packagist登録は別途メンテナが操作し、CIから自動公開しません。
 
 Report reproducible bugs with PHP and analyzer versions, a minimal example and expected behavior. Prefer small API additions justified by use in consuming products over large speculative interfaces.
 不具合報告にはPHP・解析器のバージョン、最小再現コード、期待する動作を添えます。大きな推測上のインターフェースより、利用プロダクトの実例で裏付けられた小さなAPI追加を優先します。

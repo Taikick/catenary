@@ -2,7 +2,9 @@
 /.github export-ignore
 /tests export-ignore
 /tools export-ignore
-/benchmarks export-ignore
+/benchmarks/run.php export-ignore
+/benchmarks/peers export-ignore
+/AGENTS.md export-ignore
 /phpunit.xml export-ignore
 /phpstan.neon export-ignore
 /psalm*.xml export-ignore

@@ -7,7 +7,8 @@ use Catenary\Option;
 use Catenary\Stream;
 use Catenary\Vec;
 
-require dirname(__DIR__) . '/vendor/autoload.php';
+// Accept a consumer autoloader when running the installed example / 配布例では利用先のautoloadを指定できます。
+require $argv[1] ?? dirname(__DIR__) . '/vendor/autoload.php';
 
 $names = Vec::of(' Ada ', '', ' Grace ')
     ->map('trim')

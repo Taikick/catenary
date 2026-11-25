@@ -7,7 +7,7 @@ Typed method chains for PHP arrays and iterables: transform, filter, search and 
 
 **PHP 8.3+, MIT licensed, zero runtime dependencies.** PHPStan and Psalm inference is covered by tests. No framework integration is required.
 
-**Unreleased development preview:** no stable release or Packagist registration is available yet. Keep a reviewed commit in the consuming project's `composer.lock` when using `main`. Existing users should read the [rename migration guide](docs/migration-to-catenary.md#english).
+**Initial release: `v0.1.0` (2026-11-25).** This is a pre-1.0 API: minor versions may introduce breaking changes, while patches remain compatible. The package is not registered on Packagist; install the tagged version using the VCS configuration below. Existing users should read the [rename migration guide](docs/migration-to-catenary.md#english).
 
 ## Transform and filter values
 
@@ -122,14 +122,14 @@ The factory must return a fresh iterable on each invocation. Do not return a pre
 
 ## Installation
 
-Before Packagist registration, add the VCS repository and requirement to the consuming project's `composer.json`:
+Add the VCS repository and tagged-version requirement to the consuming project's `composer.json`, preserving unrelated requirements and repository settings. Publishing a GitHub tag and registering on Packagist are separate operations.
 
 ```json
 {
     "repositories": [
         {"type": "vcs", "url": "https://github.com/Taikick/catenary"}
     ],
-    "require": {"catenary/collections": "dev-main"}
+    "require": {"catenary/collections": "^0.1.0"}
 }
 ```
 
@@ -137,7 +137,9 @@ Before Packagist registration, add the VCS repository and requirement to the con
 composer update catenary/collections --with-dependencies
 ```
 
-Review and commit the resulting `composer.lock`; use `composer install` for deployment. `dev-main` is not a stability guarantee. Follow the [migration guide](docs/migration-to-catenary.md#english) when upgrading from the previous package name.
+`^0.1.0` allows versions from `0.1.0` up to, but excluding, `0.2.0`. Composer classifies the suffix-free `v0.1.0` tag as `stable`. API compatibility follows the [pre-1.0 policy](CONTRIBUTING.md#compatibility--互換性). Review and commit the resulting `composer.lock`; use `composer install` for deployment. Follow the [migration guide](docs/migration-to-catenary.md#english) when upgrading from the previous package name.
+
+Use `dev-main` only when intentionally trying unreleased changes, and keep the reviewed commit in the consuming project's `composer.lock`. The `main` branch may contain changes made after the latest tag.
 
 ## Types, immutability and performance
 
@@ -151,9 +153,11 @@ See [API contracts and complexity](docs/contracts.md) for the complete behavior.
 
 ## Development and verification
 
-Use an up-to-date PHP patch release for development tools; see `composer.json` for their requirements.
+Use a Git clone for development and tests. Distribution archives exclude tests, development tools and the development lockfile. Use an up-to-date PHP patch release for development tools; see `composer.json` for their requirements.
 
 ```sh
+git clone https://github.com/Taikick/catenary.git
+cd catenary
 composer install
 composer check
 composer bench

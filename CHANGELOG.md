@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+## 0.1.0 — 2026-11-25
+
+Initial tagged release of the framework-independent PHP collection library.
+フレームワークに依存しないPHPコレクション操作ライブラリの初回タグ版です。
+
+- Fix null-only `Option::fromNullable` and `mapNullable` inference in PHPStan and Psalm: they now infer `Option<never>`, retaining the exact fallback result type without changing runtime behavior.
+  nullだけを扱う`fromNullable`・`mapNullable`を両解析器で`Option<never>`と推論するよう修正。実行時の動作を変えず、代替処理の型に不要なmixed・nullが残る問題を解消。
 - Rename the development package to `catenary/collections` and its public namespace to `Catenary`, without legacy aliases. See the [migration guide](docs/migration-to-catenary.md).
   開発版をCatenaryへ改名し、旧名のaliasは設けず移行手順を公開。日本語READMEを主入口にし、英語版も整備。
 - Complete bilingual parameter/return documentation and qualify PHPDoc class names; validate all named declarations in CI.
@@ -17,4 +24,5 @@
 - Add runtime/property-law tests, PHPStan/Psalm inference and rejection fixtures, bilingual documentation checks, formatting, reproducible benchmarks and PHP 8.3–8.5 CI.
   実行・法則テスト、型の推論と拒否の検証、英日コメント検査、書式検査、再現可能なベンチマーク、PHP 8.3〜8.5のCIを追加。
 
-No published releases yet. / 公開済みリリースはまだありません。
+Install the tag through the documented VCS repository. Packagist registration is a separate operation.
+導入にはREADMEのVCS設定を使用します。Packagistへの登録は別の操作です。

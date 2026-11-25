@@ -7,7 +7,7 @@ PHPの配列や`iterable`を、型付きのメソッドチェーンで扱うた�
 
 **PHP 8.3以上・MITライセンス・実行時の外部依存なし。** PHPStanとPsalmの型推論をテストし、フレームワークに依存せず利用できます。
 
-**現在は未リリースの開発版です。安定版の公開・Packagist登録はまだ行っていません。** `main`を利用する場合は、利用先の`composer.lock`でレビュー済みコミットを固定してください。旧名からの変更は[移行ガイド](docs/migration-to-catenary.md)を参照してください。
+**初期リリース: `v0.1.0`（2026-11-25）。** 1.0前のAPIで、マイナーバージョンでは破壊的変更を行う場合があります。パッチバージョンでは互換性を維持します。Packagistには未登録のため、下記のVCS設定でタグ版を導入してください。旧名からの変更は[移行ガイド](docs/migration-to-catenary.md)を参照してください。
 
 ## 値を変換して絞り込む
 
@@ -122,14 +122,14 @@ $snapshot->toList(); // [0, 2, 4]
 
 ## 導入
 
-Packagist登録前は、利用先の`composer.json`にVCSリポジトリと依存を追加します。
+利用先の`composer.json`にVCSリポジトリとタグ版の依存を追加します。既存の他の依存・repositories設定は維持してください。GitHubのタグ公開とPackagistへの登録は別の操作です。
 
 ```json
 {
     "repositories": [
         {"type": "vcs", "url": "https://github.com/Taikick/catenary"}
     ],
-    "require": {"catenary/collections": "dev-main"}
+    "require": {"catenary/collections": "^0.1.0"}
 }
 ```
 
@@ -137,7 +137,9 @@ Packagist登録前は、利用先の`composer.json`にVCSリポジトリと依�
 composer update catenary/collections --with-dependencies
 ```
 
-更新した`composer.lock`をレビュー・保存し、配備には`composer install`を使います。`dev-main`は安定性の保証ではありません。旧パッケージを利用中の場合は[改名に伴う移行手順](docs/migration-to-catenary.md)に従ってください。
+`^0.1.0`は`0.1.0`以上・`0.2.0`未満の更新を許可します。suffixのない`v0.1.0`はComposerでは`stable`に分類されます。APIの互換性は[1.0前の方針](CONTRIBUTING.md#compatibility--互換性)に従います。更新した`composer.lock`をレビュー・保存し、配備には`composer install`を使います。旧パッケージを利用中の場合は[改名に伴う移行手順](docs/migration-to-catenary.md)に従ってください。
+
+未リリースの変更を試す場合だけ`dev-main`を選び、利用先の`composer.lock`でレビュー済みコミットを固定してください。`main`にはタグ版より後の変更が入ります。
 
 ## 型・不変性・性能の契約
 
@@ -151,9 +153,11 @@ composer update catenary/collections --with-dependencies
 
 ## 開発と検証
 
-開発ツールには新しいPHPパッチ版を使い、対応条件は`composer.json`で確認してください。
+開発・テストにはGitでcloneした作業コピーを使います。配布archiveにはテスト・開発ツール・開発用lockfileを含めていません。開発ツールには新しいPHPパッチ版を使い、対応条件は`composer.json`で確認してください。
 
 ```sh
+git clone https://github.com/Taikick/catenary.git
+cd catenary
 composer install
 composer check
 composer bench

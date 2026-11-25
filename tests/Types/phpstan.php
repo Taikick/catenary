@@ -43,6 +43,12 @@ function inference(array $numbers, array $strings, ?string $nullable, int $numbe
     assertType('Catenary\\Vec<int>', $vec->flatMap(fn (int $n): array => [$n]));
     assertType('int', $vec->fold(0, fn (int $a, int $n): int => $a + $n));
     assertType('Catenary\\Option<string>', Option::fromNullable(value: $nullable));
+    $nullOnly = Option::fromNullable(value: null);
+    assertType('Catenary\\Option<never>', $nullOnly);
+    assertType('string', $nullOnly->getOrElse(fallback: fn (): string => $text));
+    $nullOnlyMap = Option::some(value: $number)->mapNullable(mapper: fn (): null => null);
+    assertType('Catenary\\Option<never>', $nullOnlyMap);
+    assertType('string', $nullOnlyMap->getOrElse(fallback: fn (): string => $text));
     assertType('Catenary\\Option<null>', Option::some(value: null));
     assertType('Catenary\\Option<never>', Option::none());
     assertType(

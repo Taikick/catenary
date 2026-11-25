@@ -3,6 +3,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -71,3 +72,4 @@ jobs:
           coverage: none
       - run: composer install --no-dev --no-interaction --prefer-dist
       - run: php examples/basic.php
+      - run: php tools/check-distribution.php

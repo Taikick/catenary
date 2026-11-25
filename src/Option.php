@@ -44,10 +44,12 @@ abstract readonly class Option
     /**
      * Converts null to absence and preserves every other value.
      * nullを欠損へ変換し、それ以外の値は保持します。
+     * Null-only input infers Option<never>, preserving the fallback result type.
+     * nullだけの入力はOption<never>と推論し、代替処理の戻り型を保持します。
      *
      * @template U
-     * @param U|null $value
-     * @return \Catenary\Option<U>
+     * @param U $value
+     * @return \Catenary\Option<(U is null ? never : U)>
      */
     final public static function fromNullable(mixed $value): Option
     {
@@ -113,10 +115,12 @@ abstract readonly class Option
     /**
      * Maps a present value, converting a null result into absence.
      * 存在する値を変換し、結果がnullなら欠損へ変換します。
+     * Null-only mapper results infer Option<never>; other result types exclude null.
+     * nullだけの変換結果はOption<never>と推論し、他の結果型からもnullを除外します。
      *
      * @template U
-     * @param callable(T): (U|null) $mapper
-     * @return \Catenary\Option<U>
+     * @param callable(T): U $mapper
+     * @return \Catenary\Option<(U is null ? never : U)>
      */
     final public function mapNullable(callable $mapper): Option
     {
