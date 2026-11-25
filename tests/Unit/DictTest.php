@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections\Tests\Unit;
+namespace Catenary\Tests\Unit;
 
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
-use Taikick\Collections\Dict;
+use Catenary\Dict;
 
 /**
  * Tests insertion-ordered dictionaries with strictly distinguished key types.
@@ -17,6 +17,8 @@ final class DictTest extends TestCase
     /**
      * Preserves numeric strings, integers, empty keys and present nulls.
      * 数値文字列・整数・空キー・存在するnullを保持することを検証します。
+     *
+     * @return void
      */
     public function testStrictKeysAndNull(): void
     {
@@ -39,6 +41,8 @@ final class DictTest extends TestCase
     /**
      * Rejects repeated keys even when the previous value was null.
      * 先行する値がnullでも重複キーを拒否することを検証します。
+     *
+     * @return void
      */
     public function testDuplicateKeysAreRejected(): void
     {
@@ -49,6 +53,8 @@ final class DictTest extends TestCase
     /**
      * Makes replacement explicit while retaining the original insertion position.
      * 置換を明示的に行い、元の挿入位置を保つことを検証します。
+     *
+     * @return void
      */
     public function testImmutableUpdates(): void
     {
@@ -64,6 +70,8 @@ final class DictTest extends TestCase
     /**
      * Maps values with their original key and extracts ordered views.
      * 元のキーとともに値を変換し、順序付きの一覧を取り出せることを検証します。
+     *
+     * @return void
      */
     public function testMapValuesAndViews(): void
     {

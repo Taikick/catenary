@@ -1,9 +1,9 @@
-# API contracts / API契約
+# API契約と計算量
 
-Public classes live in `Taikick\Collections`. `Internal` is not a supported extension API.
-公開クラスは`Taikick\Collections`に属します。`Internal`は拡張用の公開APIではありません。
+Catenaryは、PHPでコレクションの変換・検索・集約と、値の存在・欠損を扱うライブラリです。公開クラスの名前空間は`Catenary`です。`Internal`以下は拡張用の公開APIではありません。
+Public classes live in `Catenary`. `Internal` is not a supported extension API.
 
-## Type and ownership rules / 型と所有の規則
+## 型・所有・評価の規則
 
 - All containers are covariant in their element types. Adding values widens the result's type; the original container's type and contents stay unchanged.
   各コンテナの要素型は共変です。追加操作は結果の型を拡張し、元のコンテナの型と内容は変更しません。
@@ -11,12 +11,13 @@ Public classes live in `Taikick\Collections`. `Internal` is not a supported exte
   `Vec`と`Dict`はPHP配列のコピーオンライトを使います。永続木構造ではないため、不変な追加操作を繰り返すと合計時間が二次的に増えます。一括構築には`fromIterable`・`fromPairs`を使います。
 - Immutability is shallow. Objects, resources and references inside element values are not recursively copied or frozen.
   不変性は浅いものです。要素内のオブジェクト・資源・参照を再帰的に複製または凍結しません。
+  `Vec::fromIterable`と`Dict::fromPairs`は入力配列の第一階層の参照を値から切り離します。
 - Callbacks accept values, not implicit indexes, unless explicitly documented (`Dict::mapValues` gets value then key). Any PHP callable is accepted. Callbacks may have side effects or throw; exceptions propagate unchanged.
   明記された例外を除き、コールバックには値だけを渡します。`Dict::mapValues`には値・キーの順で渡します。PHPのcallableを受け入れ、副作用を禁止せず、例外はそのまま伝播します。
 - Generic PHPDoc types are part of the public contract. Static analysis checks callback/element types. Native PHP checks native parameter types; heterogeneous container contents are not recursively runtime-validated.
   ジェネリクスのPHPDocも公開契約です。コールバックや要素の型は静的解析で確認します。実行時はPHPのネイティブ引数型の検査を行い、格納内容の型を再帰的に検査しません。
 
-## Option
+## Option：値の存在と欠損
 
 `Option<T>` is an abstract, readonly sum-type API with internal `Some<T>` and `None` implementations. Use factories; inheritance outside this package is not a supported extension mechanism.
 `Option<T>`はreadonlyな抽象APIで、内部実装は`Some<T>`と`None`です。生成にはファクトリを使い、パッケージ外からの継承は拡張手段として保証しません。
@@ -38,13 +39,19 @@ Public classes live in `Taikick\Collections`. `Internal` is not a supported exte
 Each operation performs constant container work plus at most one callback.
 コンテナ自体の処理は定数時間で、コールバックは高々一回実行します。
 
-## Vec
+## Vec：順序付きリスト
+
+`Vec<T>`は即時評価するゼロ始まりのリストです。変換では元の構造を変更せず、検索結果は欠損を区別する`Option<T>`で受け取れます。`find`・`any`・`every`は出現順に判定し、結果が決まった時点で終了します。全件を評価したい場合は`filter`を使います。
 
 | API | Behavior / 動作 | Time / 時間 |
 | --- | --- | --- |
-| `empty()`, `of(...items)`, `fromIterable(items)` | Eager list creation; keys discarded / 即時構築しキーを捨てる | O(1), O(n), O(n) |
+| `empty()`, `of(...items)` | 空リスト・引数順のリストを構築しキーを捨てる / Eager list creation; keys discarded | O(1), O(n) |
+| `fromIterable(items)` | 既存Vecは同一インスタンスを再利用。他は一回の即時走査 / Reuse a Vec; collect any other iterable once | VecはO(1)、他はO(n) |
 | `toList()` | Copy-on-write PHP list / コピーオンライトのPHPリスト | O(1) until mutation / 変更までO(1) |
-| `count()`, `isEmpty()`, `at(index)`, `first()` | Index queries preserve null; missing/negative index is None / nullを保持し不正位置は欠損 | O(1) |
+| `count()`, `isEmpty()`, `at(index)`, `first()`, `last()` | nullを保持し空・範囲外・負の添字は欠損 / Index queries preserve null; absent positions are None | O(1) |
+| `find(predicate)` | 最初の一致をOptionで返す。一致なし・空はNone、nullの一致はSome(null) / First matching Option | 最悪O(n)＋述語、最初の一致で終了 |
+| `any(predicate)` | 最初の一致でtrue。空は述語を呼ばずfalse / First match wins; false on empty | 最悪O(n)＋述語、最初の一致で終了 |
+| `every(predicate)` | 最初の不一致でfalse。空は述語を呼ばずtrue / First rejection stops; true on empty | 最悪O(n)＋述語、最初の不一致で終了 |
 | `getIterator()` | Zero-based ordered values / ゼロ始まりの順序付き値 | O(n) traversal / 全走査 |
 | `map`, `filter`, `filterMap` | Eager transformations; filterMap unwraps only Some / 即時変換・存在する結果のみ抽出 | O(n) + callbacks |
 | `flatMap` | One-level flatten; inner keys discarded / 一段平坦化して内側キーを捨てる | O(n + m) |
@@ -58,10 +65,14 @@ Each operation performs constant container work plus at most one callback.
 | `sorted(compare)` | Stable sorted copy / 安定ソートしたコピー | O(n log n) + comparisons |
 | `stream()` | Lazy view over this snapshot / このスナップショットの遅延走査 | O(1) creation / 生成 |
 
+検索・判定の述語型は`callable(T): bool`です。各要素を高々一回評価し、判定後の中間コレクションを作りません。述語が投げた例外は同じ例外のまま伝播します。副作用がある述語では、全件評価する`filter`と短絡する`find`の評価回数が異なる点に注意してください。
+
+`Vec::fromIterable($existingVec)`は`===`でも同じVecを返します。オブジェクトの複製や要素の凍結を要求する操作ではありません。他のiterableを一度だけ収集する挙動と、配列の第一階層の参照切離しは変わりません。
+
 Negative take/drop counts and non-positive chunk sizes throw `InvalidArgumentException` immediately. `uniqueBy` accepts only int/string keys, including negative integers, numeric strings, empty strings and strings containing null bytes. It does not define object equality or float hashing.
 take/dropの負数、chunkの0以下は即座に`InvalidArgumentException`になります。重複判定のキーは整数・文字列のみで、負の整数・数値文字列・空文字・nullバイトを含む文字列も扱います。オブジェクトの等価性や浮動小数点数のハッシュは定義しません。
 
-## Dict
+## Dict：キーの型を区別する辞書
 
 | API | Behavior / 動作 | Time / 時間 |
 | --- | --- | --- |
@@ -77,7 +88,7 @@ take/dropの負数、chunkの0以下は即座に`InvalidArgumentException`にな
 Duplicates are rejected during bulk construction, even if the previous value is null. Removing and reinserting a key moves it to the end. Hash complexity assumes ordinary PHP hash-table behavior and bounded key length; hashing long strings also costs their length.
 一括構築での重複は先行値がnullでも拒否します。除去後に再挿入したキーは末尾に移動します。ハッシュの計算量は通常のPHPハッシュテーブルと有界なキー長を前提とし、長い文字列のハッシュには文字列長に応じたコストがかかります。
 
-## Stream
+## Stream：必要な分だけ遅延評価
 
 | API | Behavior / 動作 |
 | --- | --- |

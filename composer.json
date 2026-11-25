@@ -1,6 +1,6 @@
 {
-    "name": "taikick/typed-collections",
-    "description": "Immutable PHP collections and Option with tested PHPStan and Psalm inference.",
+    "name": "catenary/collections",
+    "description": "PHPの型付き・不変コレクション操作ライブラリ。Vec・Option・Dict・StreamとPHPStan/Psalmの型推論に対応。",
     "type": "library",
     "license": "MIT",
     "keywords": [
@@ -29,12 +29,12 @@
     },
     "autoload": {
         "psr-4": {
-            "Taikick\\Collections\\": "src/"
+            "Catenary\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Taikick\\Collections\\Tests\\": "tests/"
+            "Catenary\\Tests\\": "tests/"
         }
     },
     "scripts": {

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<ruleset name="Typed Collections">
+<ruleset name="Catenary">
     <description>PSR-12 formatting for maintained source and development tools.</description>
     <file>src</file>
     <file>tests</file>

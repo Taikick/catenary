@@ -2,13 +2,9 @@
 
 declare(strict_types=1);
 
-use Taikick\Collections\Vec;
+use Catenary\Vec;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
-$peerAutoload = __DIR__ . '/peers/vendor/autoload.php';
-if (is_file($peerAutoload)) {
-    require $peerAutoload;
-}
 
 /**
  * Measures equivalent operations after warmup and verifies every returned value.
@@ -66,11 +62,6 @@ $unique = [
     },
     'vec_unique_by' => static fn (): array => Vec::fromIterable($values)->uniqueBy(fn (int $n): int => $n)->toList(),
 ];
-if (class_exists(ScalikePHP\Seq::class)) {
-    $unique['scalikephp_0_8_3_distinct_by'] = static fn (): array =>
-        ScalikePHP\Seq::fromArray($values)->distinctBy(fn (int $n): int => $n)->toArray();
-}
-
 $results = [];
 foreach ($unique as $name => $operation) {
     $results['unique_integer_ids'][$name] = $measure($operation, $values, $iterations);
@@ -83,6 +74,53 @@ $expected = array_map(fn (int $n): int => $n * 2, array_slice($values, 0, 10));
 $results['map_then_take_10']['eager'] = $measure($eager, $expected, $iterations);
 $results['map_then_take_10']['lazy'] = $measure($lazy, $expected, $iterations);
 
+$snapshot = Vec::fromIterable($values);
+$positions = ['first' => 0, 'middle' => intdiv($size, 2), 'last' => $size - 1, 'missing' => $size];
+foreach ($positions as $position => $target) {
+    $matches = static fn (int $value): bool => $value === $target;
+    $accepts = static fn (int $value): bool => $value !== $target;
+    $expectedValue = $target < $size ? $target : null;
+    $results['find_' . $position] = [
+        'filter_then_first' => $measure(
+            static fn (): ?int => $snapshot->filter($matches)->first()->getOrElse(static fn () => null),
+            $expectedValue,
+            $iterations,
+        ),
+        'direct_find' => $measure(
+            static fn (): ?int => $snapshot->find($matches)->getOrElse(static fn () => null),
+            $expectedValue,
+            $iterations,
+        ),
+    ];
+    $results['any_' . $position] = [
+        'filter_then_nonempty' => $measure(
+            static fn (): bool => !$snapshot->filter($matches)->isEmpty(),
+            $target < $size,
+            $iterations,
+        ),
+        'direct_any' => $measure(static fn (): bool => $snapshot->any($matches), $target < $size, $iterations),
+    ];
+    $results['every_' . $position] = [
+        'filter_then_count' => $measure(
+            static fn (): bool => $snapshot->filter($accepts)->count() === $size,
+            $target >= $size,
+            $iterations,
+        ),
+        'direct_every' => $measure(static fn (): bool => $snapshot->every($accepts), $target >= $size, $iterations),
+    ];
+}
+$results['reuse_existing_vec'] = [
+    'recollect_iterator' => $measure(
+        static fn (): array => Vec::fromIterable($snapshot->getIterator())->toList(),
+        $values,
+        $iterations,
+    ),
+    'reuse_snapshot' => $measure(static fn (): array => Vec::fromIterable($snapshot)->toList(), $values, $iterations),
+];
+if (Vec::fromIterable($snapshot) !== $snapshot) {
+    throw new RuntimeException('Snapshot reuse must retain the Vec identity.');
+}
+
 echo json_encode([
     'environment' => [
         'php' => PHP_VERSION,
@@ -94,7 +132,6 @@ echo json_encode([
         'jit_buffer_size' => ini_get('opcache.jit_buffer_size'),
         'size' => $size,
         'iterations' => $iterations,
-        'scalikephp' => class_exists(ScalikePHP\Seq::class) ? '0.8.3' : null,
     ],
     'results' => $results,
 ], JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR) . PHP_EOL;

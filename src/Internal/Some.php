@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections\Internal;
+namespace Catenary\Internal;
 
-use Taikick\Collections\Option;
+use Catenary\Option;
 use Throwable;
 
 /**
@@ -13,7 +13,7 @@ use Throwable;
  *
  * @internal
  * @template-covariant T
- * @extends Option<T>
+ * @extends \Catenary\Option<T>
  */
 final readonly class Some extends Option
 {
@@ -22,6 +22,7 @@ final readonly class Some extends Option
      * オブジェクトの複製やnullの変換をせずに値を保持します。
      *
      * @param T $value
+     * @return void
      */
     public function __construct(private mixed $value)
     {
@@ -30,6 +31,8 @@ final readonly class Some extends Option
     /**
      * Always reports a present value.
      * 値が存在することを常に返します。
+     *
+     * @return bool
      */
     #[\Override]
     public function isSome(): bool
@@ -41,7 +44,7 @@ final readonly class Some extends Option
      * Returns the stored value without evaluating the exception factory.
      * 例外生成処理を評価せず、保持する値を返します。
      *
-     * @param (callable(): Throwable)|null $exception
+     * @param callable(): \Throwable|null $exception
      * @return T
      */
     #[\Override]

@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections\Tests\Unit;
+namespace Catenary\Tests\Unit;
 
 use Generator;
 use LogicException;
 use PHPUnit\Framework\TestCase;
 use stdClass;
-use Taikick\Collections\Dict;
-use Taikick\Collections\Option;
-use Taikick\Collections\Stream;
-use Taikick\Collections\Vec;
+use Catenary\Dict;
+use Catenary\Option;
+use Catenary\Stream;
+use Catenary\Vec;
 
 /**
  * Exercises ownership, failure propagation and deterministic reference properties.
@@ -22,6 +22,8 @@ final class BoundaryTest extends TestCase
     /**
      * Isolates array structure while deliberately sharing mutable object elements.
      * 配列構造を分離しつつ、変更可能な要素オブジェクトは意図的に共有します。
+     *
+     * @return void
      */
     public function testShallowImmutability(): void
     {
@@ -41,6 +43,8 @@ final class BoundaryTest extends TestCase
     /**
      * Keeps first-level values independent from references in input arrays.
      * 入力配列内の参照から第一階層の値を分離して保持します。
+     *
+     * @return void
      */
     public function testInputReferencesAreDetached(): void
     {
@@ -57,6 +61,8 @@ final class BoundaryTest extends TestCase
     /**
      * Preserves exception identity at eager and lazy callback boundaries.
      * 即時・遅延コールバックの境界で例外の同一性を保持することを検証します。
+     *
+     * @return void
      */
     public function testExceptionsPropagateUnchanged(): void
     {
@@ -64,7 +70,7 @@ final class BoundaryTest extends TestCase
         $throw = fn () => throw $failure;
         foreach (
             [
-            fn () => Option::some(1)->map($throw),
+            fn () => Option::some(value: 1)->map($throw),
             fn () => Vec::of(1)->map($throw),
             fn () => Dict::fromPairs([['a', 1]])->mapValues($throw),
             fn () => Stream::fromFactory($throw)->toVec(),
@@ -78,12 +84,14 @@ final class BoundaryTest extends TestCase
                 self::assertSame($failure, $error);
             }
         }
-        self::assertSame(1, Option::some(1)->getOrThrow($throw));
+        self::assertSame(1, Option::some(value: 1)->getOrThrow($throw));
     }
 
     /**
      * Collects generator values once, preserving duplicate source keys as values.
      * ジェネレータを一度だけ収集し、入力キーが重複してもすべての値を保持します。
+     *
+     * @return void
      */
     public function testGeneratorCollectionAndEmptyFolds(): void
     {
@@ -102,6 +110,8 @@ final class BoundaryTest extends TestCase
     /**
      * Checks strict deduplication, partitions and eager/lazy equivalence on many inputs.
      * 複数の入力で厳密な重複排除・分割・即時遅延処理の同等性を検証します。
+     *
+     * @return void
      */
     public function testReferenceProperties(): void
     {
@@ -132,6 +142,8 @@ final class BoundaryTest extends TestCase
     /**
      * Keeps equal elements in their original order during sorting.
      * ソート時に比較結果が等しい要素の元の順序を保持します。
+     *
+     * @return void
      */
     public function testStableSorting(): void
     {

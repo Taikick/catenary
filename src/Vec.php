@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections;
+namespace Catenary;
 
 use Countable;
 use InvalidArgumentException;
 use IteratorAggregate;
-use Taikick\Collections\Internal\Key;
+use Catenary\Internal\Key;
 use Traversable;
 
 /**
@@ -15,7 +15,7 @@ use Traversable;
  * 即時評価される、順序付きの浅い不変性を持つ値のリストです。
  *
  * @template-covariant T = never
- * @implements IteratorAggregate<int, T>
+ * @implements \IteratorAggregate<int, T>
  */
 final readonly class Vec implements Countable, IteratorAggregate
 {
@@ -24,6 +24,7 @@ final readonly class Vec implements Countable, IteratorAggregate
      * 連続した整数キーに正規化済みのリストを保持します。
      *
      * @param list<T> $items
+     * @return void
      */
     private function __construct(private array $items = [])
     {
@@ -33,7 +34,7 @@ final readonly class Vec implements Countable, IteratorAggregate
      * Creates an empty list compatible with every element type.
      * あらゆる要素型と互換性を持つ空のリストを作成します。
      *
-     * @return Vec<never>
+     * @return \Catenary\Vec<never>
      */
     public static function empty(): Vec
     {
@@ -46,28 +47,31 @@ final readonly class Vec implements Countable, IteratorAggregate
      *
      * @template U
      * @param U ...$items
-     * @return Vec<U>
+     * @return \Catenary\Vec<U>
      */
     public static function of(mixed ...$items): Vec
     {
-        return new self(array_values($items));
+        return new self(items: array_values($items));
     }
 
     /**
-     * Eagerly consumes an iterable once, discarding its keys.
-     * iterableを一度だけ即時走査し、元のキーを捨てて収集します。
+     * Reuses a Vec snapshot; eagerly consumes every other iterable once, discarding keys.
+     * Vecは同じスナップショットを再利用し、他のiterableはキーを捨てて一度だけ即時走査します。
      *
      * @template U
      * @param iterable<mixed, U> $items
-     * @return Vec<U>
+     * @return \Catenary\Vec<U>
      */
     public static function fromIterable(iterable $items): Vec
     {
+        if ($items instanceof self) {
+            return $items;
+        }
         $values = [];
         foreach ($items as $item) {
             $values[] = $item;
         }
-        return new self($values);
+        return new self(items: $values);
     }
 
     /**
@@ -85,7 +89,7 @@ final readonly class Vec implements Countable, IteratorAggregate
      * Iterates over values with consecutive zero-based indexes.
      * ゼロ始まりの連続したインデックスで値を走査します。
      *
-     * @return Traversable<int, T>
+     * @return \Traversable<int, T>
      */
     #[\Override]
     public function getIterator(): Traversable
@@ -96,6 +100,8 @@ final readonly class Vec implements Countable, IteratorAggregate
     /**
      * Returns the number of elements in constant time.
      * 要素数を定数時間で返します。
+     *
+     * @return int
      */
     #[\Override]
     public function count(): int
@@ -106,6 +112,8 @@ final readonly class Vec implements Countable, IteratorAggregate
     /**
      * Checks for an empty list in constant time.
      * リストが空かどうかを定数時間で調べます。
+     *
+     * @return bool
      */
     public function isEmpty(): bool
     {
@@ -116,22 +124,88 @@ final readonly class Vec implements Countable, IteratorAggregate
      * Looks up a zero-based index; negative or missing indexes return None.
      * ゼロ始まりの位置を検索し、負数や存在しない位置ならNoneを返します。
      *
-     * @return Option<T>
+     * @return \Catenary\Option<T>
+     * @param int $index
      */
     public function at(int $index): Option
     {
-        return array_key_exists($index, $this->items) ? Option::some($this->items[$index]) : Option::none();
+        return array_key_exists($index, $this->items) ? Option::some(value: $this->items[$index]) : Option::none();
     }
 
     /**
      * Returns the first element, preserving a present null.
      * 存在するnullを保持したまま先頭要素を返します。
      *
-     * @return Option<T>
+     * @return \Catenary\Option<T>
      */
     public function first(): Option
     {
         return $this->at(0);
+    }
+
+    /**
+     * Returns the last element in constant time, preserving present null and empty absence.
+     * 定数時間で末尾を取得し、存在するnullと空リストの欠損を区別します。
+     *
+     * @return \Catenary\Option<T>
+     */
+    public function last(): Option
+    {
+        return $this->at(count($this->items) - 1);
+    }
+
+    /**
+     * Returns the first matching value, including null; later predicates are not evaluated.
+     * nullを含め最初に合致した値を返し、それ以降の述語を評価しません。空ならNoneです。
+     *
+     * @param callable(T): bool $predicate
+     * @return \Catenary\Option<T>
+     * @throws \Throwable Propagates predicate exceptions unchanged. / 述語の例外をそのまま送出します。
+     */
+    public function find(callable $predicate): Option
+    {
+        foreach ($this->items as $item) {
+            if ($predicate($item)) {
+                return Option::some(value: $item);
+            }
+        }
+        return Option::none();
+    }
+
+    /**
+     * Stops at the first accepted value; empty vectors return false without invoking the predicate.
+     * 最初の一致で終了し、空リストでは述語を呼ばずfalseを返します。
+     *
+     * @param callable(T): bool $predicate
+     * @return bool
+     * @throws \Throwable Propagates predicate exceptions unchanged. / 述語の例外をそのまま送出します。
+     */
+    public function any(callable $predicate): bool
+    {
+        foreach ($this->items as $item) {
+            if ($predicate($item)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Stops at the first rejected value; empty vectors return true without invoking the predicate.
+     * 最初の不一致で終了し、空リストでは述語を呼ばずtrueを返します。
+     *
+     * @param callable(T): bool $predicate
+     * @return bool
+     * @throws \Throwable Propagates predicate exceptions unchanged. / 述語の例外をそのまま送出します。
+     */
+    public function every(callable $predicate): bool
+    {
+        foreach ($this->items as $item) {
+            if (!$predicate($item)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -140,7 +214,7 @@ final readonly class Vec implements Countable, IteratorAggregate
      *
      * @template U
      * @param callable(T): U $mapper
-     * @return Vec<U>
+     * @return \Catenary\Vec<U>
      */
     public function map(callable $mapper): Vec
     {
@@ -148,7 +222,7 @@ final readonly class Vec implements Countable, IteratorAggregate
         foreach ($this->items as $item) {
             $values[] = $mapper($item);
         }
-        return new self($values);
+        return new self(items: $values);
     }
 
     /**
@@ -156,7 +230,7 @@ final readonly class Vec implements Countable, IteratorAggregate
      * 条件に合う要素を順序を保って残し、結果の添字を振り直します。
      *
      * @param callable(T): bool $predicate
-     * @return Vec<T>
+     * @return \Catenary\Vec<T>
      */
     public function filter(callable $predicate): Vec
     {
@@ -166,7 +240,7 @@ final readonly class Vec implements Countable, IteratorAggregate
                 $values[] = $item;
             }
         }
-        return new self($values);
+        return new self(items: $values);
     }
 
     /**
@@ -174,8 +248,8 @@ final readonly class Vec implements Countable, IteratorAggregate
      * Optionへ変換し、nullを含めて存在する値だけを収集します。
      *
      * @template U
-     * @param callable(T): Option<U> $mapper
-     * @return Vec<U>
+     * @param callable(T): \Catenary\Option<U> $mapper
+     * @return \Catenary\Vec<U>
      */
     public function filterMap(callable $mapper): Vec
     {
@@ -186,7 +260,7 @@ final readonly class Vec implements Countable, IteratorAggregate
                 $values[] = $option->getOrThrow();
             }
         }
-        return new self($values);
+        return new self(items: $values);
     }
 
     /**
@@ -195,7 +269,7 @@ final readonly class Vec implements Countable, IteratorAggregate
      *
      * @template U
      * @param callable(T): iterable<mixed, U> $mapper
-     * @return Vec<U>
+     * @return \Catenary\Vec<U>
      */
     public function flatMap(callable $mapper): Vec
     {
@@ -205,7 +279,7 @@ final readonly class Vec implements Countable, IteratorAggregate
                 $values[] = $value;
             }
         }
-        return new self($values);
+        return new self(items: $values);
     }
 
     /**
@@ -233,11 +307,11 @@ final readonly class Vec implements Countable, IteratorAggregate
      *
      * @template U
      * @param U $value
-     * @return Vec<T|U>
+     * @return \Catenary\Vec<T|U>
      */
     public function append(mixed $value): Vec
     {
-        return new self([...$this->items, $value]);
+        return new self(items: [...$this->items, $value]);
     }
 
     /**
@@ -246,7 +320,7 @@ final readonly class Vec implements Countable, IteratorAggregate
      *
      * @template U
      * @param iterable<mixed, U> $items
-     * @return Vec<T|U>
+     * @return \Catenary\Vec<T|U>
      */
     public function concat(iterable $items): Vec
     {
@@ -254,45 +328,48 @@ final readonly class Vec implements Countable, IteratorAggregate
         foreach ($items as $item) {
             $values[] = $item;
         }
-        return new self($values);
+        return new self(items: $values);
     }
 
     /**
      * Takes at most the requested number of leading elements.
      * 指定した個数を上限として先頭から要素を取り出します。
      *
-     * @return Vec<T>
-     * @throws InvalidArgumentException For a negative count. / 個数が負の場合。
+     * @return \Catenary\Vec<T>
+     * @throws \InvalidArgumentException For a negative count. / 個数が負の場合。
+     * @param int $count
      */
     public function take(int $count): Vec
     {
         if ($count < 0) {
             throw new InvalidArgumentException('The take count must be non-negative.');
         }
-        return new self(array_slice($this->items, 0, $count));
+        return new self(items: array_slice($this->items, 0, $count));
     }
 
     /**
      * Skips the requested number of leading elements.
      * 指定した個数だけ先頭の要素を読み飛ばします。
      *
-     * @return Vec<T>
-     * @throws InvalidArgumentException For a negative count. / 個数が負の場合。
+     * @return \Catenary\Vec<T>
+     * @throws \InvalidArgumentException For a negative count. / 個数が負の場合。
+     * @param int $count
      */
     public function drop(int $count): Vec
     {
         if ($count < 0) {
             throw new InvalidArgumentException('The drop count must be non-negative.');
         }
-        return new self(array_slice($this->items, $count));
+        return new self(items: array_slice($this->items, $count));
     }
 
     /**
      * Splits values into nonempty chunks no larger than the requested size.
      * 指定サイズ以下の空でないチャンクへ値を分割します。
      *
-     * @return Vec<Vec<T>>
-     * @throws InvalidArgumentException For a non-positive size. / サイズが正でない場合。
+     * @return \Catenary\Vec<\Catenary\Vec<T>>
+     * @throws \InvalidArgumentException For a non-positive size. / サイズが正でない場合。
+     * @param int $size
      */
     public function chunk(int $size): Vec
     {
@@ -301,9 +378,9 @@ final readonly class Vec implements Countable, IteratorAggregate
         }
         $chunks = [];
         foreach (array_chunk($this->items, $size) as $chunk) {
-            $chunks[] = new self($chunk);
+            $chunks[] = new self(items: $chunk);
         }
-        return new self($chunks);
+        return new self(items: $chunks);
     }
 
     /**
@@ -311,7 +388,7 @@ final readonly class Vec implements Countable, IteratorAggregate
      * 条件に合う値と合わない値を、それぞれの順序を保って分離します。
      *
      * @param callable(T): bool $predicate
-     * @return array{Vec<T>, Vec<T>}
+     * @return array{\Catenary\Vec<T>, \Catenary\Vec<T>}
      */
     public function partition(callable $predicate): array
     {
@@ -324,7 +401,7 @@ final readonly class Vec implements Countable, IteratorAggregate
                 $no[] = $item;
             }
         }
-        return [new self($yes), new self($no)];
+        return [new self(items: $yes), new self(items: $no)];
     }
 
     /**
@@ -332,20 +409,20 @@ final readonly class Vec implements Countable, IteratorAggregate
      * 型を区別するキーごとの最初の値を、期待線形時間のハッシュ処理で残します。
      *
      * @param callable(T): (int|string) $keyOf
-     * @return Vec<T>
+     * @return \Catenary\Vec<T>
      */
     public function uniqueBy(callable $keyOf): Vec
     {
         $seen = [];
         $values = [];
         foreach ($this->items as $item) {
-            $key = Key::encode($keyOf($item));
+            $key = Key::encode(key: $keyOf($item));
             if (!isset($seen[$key])) {
                 $seen[$key] = true;
                 $values[] = $item;
             }
         }
-        return new self($values);
+        return new self(items: $values);
     }
 
     /**
@@ -354,8 +431,8 @@ final readonly class Vec implements Countable, IteratorAggregate
      *
      * @template K of array-key
      * @param callable(T): K $keyOf
-     * @return Dict<K, T>
-     * @throws InvalidArgumentException For a duplicate key. / キーが重複した場合。
+     * @return \Catenary\Dict<K, T>
+     * @throws \InvalidArgumentException For a duplicate key. / キーが重複した場合。
      */
     public function keyBy(callable $keyOf): Dict
     {
@@ -371,20 +448,20 @@ final readonly class Vec implements Countable, IteratorAggregate
      * 明示した比較処理を使い、安定ソートしたコピーを返します。
      *
      * @param callable(T, T): int $compare
-     * @return Vec<T>
+     * @return \Catenary\Vec<T>
      */
     public function sorted(callable $compare): Vec
     {
         $items = $this->items;
         usort($items, $compare);
-        return new self($items);
+        return new self(items: $items);
     }
 
     /**
      * Creates a lazy stream that traverses this snapshot on each evaluation.
      * 評価のたびにこのスナップショットを走査する遅延ストリームを作成します。
      *
-     * @return Stream<T>
+     * @return \Catenary\Stream<T>
      */
     public function stream(): Stream
     {

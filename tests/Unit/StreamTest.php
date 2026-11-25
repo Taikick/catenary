@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections\Tests\Unit;
+namespace Catenary\Tests\Unit;
 
 use Generator;
 use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\TestCase;
-use Taikick\Collections\Option;
-use Taikick\Collections\Stream;
-use Taikick\Collections\Vec;
+use Catenary\Option;
+use Catenary\Stream;
+use Catenary\Vec;
 
 /**
  * Tests deferred evaluation, short-circuiting and explicit stream lifetime.
@@ -21,6 +21,8 @@ final class StreamTest extends TestCase
     /**
      * Defers factories and mappers and does not read beyond a take boundary.
      * 生成処理と変換を遅延し、takeの境界より先を読まないことを検証します。
+     *
+     * @return void
      */
     public function testLazyTakeDoesNotOverRead(): void
     {
@@ -46,6 +48,8 @@ final class StreamTest extends TestCase
     /**
      * Avoids opening the source at all when taking zero values.
      * 取り出し数がゼロなら入力を開かないことを検証します。
+     *
+     * @return void
      */
     public function testTakeZero(): void
     {
@@ -56,6 +60,8 @@ final class StreamTest extends TestCase
     /**
      * Inspects at most one yielded element for first and emptiness checks.
      * 先頭取得と空判定で高々一つの出力要素だけを確認することを検証します。
+     *
+     * @return void
      */
     public function testFirstAndIsEmptyShortCircuit(): void
     {
@@ -73,6 +79,8 @@ final class StreamTest extends TestCase
     /**
      * Composes lazy transformations while discarding all source keys.
      * 入力のキーを捨てながら遅延変換を合成することを検証します。
+     *
+     * @return void
      */
     public function testTransformations(): void
     {
@@ -84,9 +92,9 @@ final class StreamTest extends TestCase
                 ->flatMap(fn (int $n): array => ['a' => $n, 'b' => -$n])->toVec()->toList(),
         );
         self::assertSame([null, 3], $stream->filterMap(fn (int $n): Option => match ($n) {
-            1 => Option::some(null),
+            1 => Option::some(value: null),
             2 => Option::none(),
-            default => Option::some($n),
+            default => Option::some(value: $n),
         })->toVec()->toList());
         self::assertSame([2, 3], $stream->drop(1)->toVec()->toList());
         self::assertSame([], $stream->drop(9)->toVec()->toList());
@@ -96,6 +104,8 @@ final class StreamTest extends TestCase
     /**
      * Stops predicates as soon as the terminal result is known.
      * 終端結果が確定した時点で条件の評価を止めることを検証します。
+     *
+     * @return void
      */
     public function testAnyAndEvery(): void
     {
@@ -116,6 +126,8 @@ final class StreamTest extends TestCase
     /**
      * Releases generator resources after early termination and exceptions.
      * 途中終了や例外の発生後にジェネレータの資源を解放することを検証します。
+     *
+     * @return void
      */
     public function testResourceCleanup(): void
     {
@@ -144,6 +156,8 @@ final class StreamTest extends TestCase
     /**
      * Rejects negative sizes immediately, before consuming the source.
      * 入力の走査前に負のサイズを即座に拒否することを検証します。
+     *
+     * @return void
      */
     public function testInvalidSizes(): void
     {
@@ -161,6 +175,8 @@ final class StreamTest extends TestCase
     /**
      * Materializes an explicit snapshot without hidden caching in the stream.
      * ストリーム内で暗黙にキャッシュせず、明示的なスナップショットを作れることを検証します。
+     *
+     * @return void
      */
     public function testMaterialization(): void
     {

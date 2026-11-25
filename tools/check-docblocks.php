@@ -33,15 +33,27 @@ foreach (['src', 'tests', 'tools', 'benchmarks', 'examples'] as $directory) {
             ++$checked;
             $comment = $declaration->getDocComment()?->getText() ?? '';
             $description = preg_replace('/^\s*\*\s*@.*$/mu', '', $comment);
+            $location = substr($file->getPathname(), strlen($root) + 1) . ':' . $declaration->getStartLine();
             if (!preg_match('/[A-Za-z]{3,}/u', $description) || !preg_match('/[ぁ-んァ-ヶ一-龠]/u', $description)) {
-                $failures[] = substr($file->getPathname(), strlen($root) + 1) . ':' . $declaration->getStartLine();
+                $failures[] = $location . ' English/Japanese description';
+            }
+            if ($declaration instanceof ClassMethod || $declaration instanceof Function_) {
+                foreach ($declaration->params as $parameter) {
+                    $name = preg_quote($parameter->var->name, '/');
+                    if (!preg_match('/@param[^\r\n]*\$' . $name . '(?=\s|$)/m', $comment)) {
+                        $failures[] = $location . ' @param $' . $parameter->var->name;
+                    }
+                }
+                if (!preg_match('/@return\s+\S+/', $comment)) {
+                    $failures[] = $location . ' @return';
+                }
             }
         }
     }
 }
 
 if ($failures !== []) {
-    fwrite(STDERR, "Missing English/Japanese class or method documentation:\n" . implode("\n", $failures) . "\n");
+    fwrite(STDERR, "Missing bilingual descriptions or parameter/return contracts:\n" . implode("\n", $failures) . "\n");
     exit(1);
 }
 echo "Bilingual documentation verified for {$checked} declarations.\n";

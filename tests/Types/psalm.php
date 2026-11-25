@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections\Tests\Types;
+namespace Catenary\Tests\Types;
 
-use Taikick\Collections\Dict;
-use Taikick\Collections\Option;
-use Taikick\Collections\Stream;
-use Taikick\Collections\Vec;
+use Catenary\Dict;
+use Catenary\Option;
+use Catenary\Stream;
+use Catenary\Vec;
 
 /**
  * Checks Psalm's inferred generic types without replacing them using inline type overrides.
@@ -15,11 +15,31 @@ use Taikick\Collections\Vec;
  *
  * @param list<int> $numbers
  * @param list<string> $strings
+ * @param string|null $nullable
+ * @param int $number
+ * @param string $text
+ * @return void
  */
 function psalmInference(array $numbers, array $strings, ?string $nullable, int $number, string $text): void
 {
     $vec = Vec::fromIterable($numbers);
     /** @psalm-check-type-exact $vec = Vec<int> */
+    $reused = Vec::fromIterable($vec);
+    /** @psalm-check-type-exact $reused = Vec<int> */
+    $found = $vec->find(fn (int $n): bool => $n > 0);
+    /** @psalm-check-type-exact $found = Option<int> */
+    $last = $vec->last();
+    /** @psalm-check-type-exact $last = Option<int> */
+    $any = $vec->any(fn (int $n): bool => $n > 0);
+    /** @psalm-check-type-exact $any = bool */
+    $every = $vec->every(fn (int $n): bool => $n > 0);
+    /** @psalm-check-type-exact $every = bool */
+    $foundNull = Vec::of(null)->find(fn (): bool => true);
+    /** @psalm-check-type-exact $foundNull = Option<null> */
+    $lastNull = Vec::of(null)->last();
+    /** @psalm-check-type-exact $lastNull = Option<null> */
+    $emptyLast = Vec::empty()->last();
+    /** @psalm-check-type-exact $emptyLast = Option<never> */
     $mapped = $vec->map(fn (int $n): string => (string) $n);
     /** @psalm-check-type-exact $mapped = Vec<decimal-int-string> */
     $widened = $vec->append($text)->concat($strings);
@@ -28,23 +48,23 @@ function psalmInference(array $numbers, array $strings, ?string $nullable, int $
     /** @psalm-check-type-exact $chunks = Vec<Vec<int>> */
     $first = $vec->first();
     /** @psalm-check-type-exact $first = Option<int> */
-    $filtered = $vec->filterMap(fn (int $n): Option => Option::some($n));
+    $filtered = $vec->filterMap(fn (int $n): Option => Option::some(value: $n));
     /** @psalm-check-type-exact $filtered = Vec<int> */
     $flat = $vec->flatMap(fn (int $n): array => [$n]);
     /** @psalm-check-type-exact $flat = Vec<int> */
     $sum = $vec->fold(0, fn (int $a, int $n): int => $a + $n);
     /** @psalm-check-type-exact $sum = int */
-    $option = Option::fromNullable($nullable);
+    $option = Option::fromNullable(value: $nullable);
     /** @psalm-check-type-exact $option = Option<string> */
-    $presentNull = Option::some(null);
+    $presentNull = Option::some(value: null);
     /** @psalm-check-type-exact $presentNull = Option<null> */
     $absent = Option::none();
     /** @psalm-check-type-exact $absent = Option<never> */
-    $nullableMap = Option::some($number)->mapNullable(fn (): ?string => $nullable);
+    $nullableMap = Option::some(value: $number)->mapNullable(fn (): ?string => $nullable);
     /** @psalm-check-type-exact $nullableMap = Option<string> */
-    $bound = Option::some($number)->flatMap(fn (): Option => Option::fromNullable($nullable));
+    $bound = Option::some(value: $number)->flatMap(fn (): Option => Option::fromNullable(value: $nullable));
     /** @psalm-check-type-exact $bound = Option<string> */
-    $fallback = Option::some($number)->getOrElse(fn (): string => $text);
+    $fallback = Option::some(value: $number)->getOrElse(fn (): string => $text);
     /** @psalm-check-type-exact $fallback = int|string */
     $dict = Dict::fromPairs([[$text, $number]]);
     /** @psalm-check-type-exact $dict = Dict<string, int> */

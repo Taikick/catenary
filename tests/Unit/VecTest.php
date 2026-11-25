@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections\Tests\Unit;
+namespace Catenary\Tests\Unit;
 
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
-use Taikick\Collections\Option;
-use Taikick\Collections\Vec;
+use Catenary\Option;
+use Catenary\Vec;
 
 /**
  * Tests eager, ordered, immutable sequences.
@@ -18,6 +18,8 @@ final class VecTest extends TestCase
     /**
      * Reindexes iterable values and preserves null during lookup.
      * iterableを連番へ整え、検索時にnullを保持することを検証します。
+     *
+     * @return void
      */
     public function testConstructionAndLookup(): void
     {
@@ -37,6 +39,8 @@ final class VecTest extends TestCase
     /**
      * Accepts general callables and composes transformations without mutation.
      * 一般のcallableを受け入れ、元の値を変えず変換を合成できることを検証します。
+     *
+     * @return void
      */
     public function testTransformationChain(): void
     {
@@ -45,9 +49,9 @@ final class VecTest extends TestCase
         self::assertSame(['a', 'abc', 'ab'], $vec->toList());
         self::assertSame([1, -1, 2, -2], Vec::of(1, 2)->flatMap(fn (int $n): array => [$n, -$n])->toList());
         self::assertSame([null, 2], Vec::of(0, 1, 2)->filterMap(fn (int $n): Option => match ($n) {
-            0 => Option::some(null),
+            0 => Option::some(value: null),
             1 => Option::none(),
-            default => Option::some($n),
+            default => Option::some(value: $n),
         })->toList());
         self::assertSame(6, Vec::of(1, 2, 3)->fold(0, fn (int $sum, int $n): int => $sum + $n));
     }
@@ -55,6 +59,8 @@ final class VecTest extends TestCase
     /**
      * Builds new sequences and keeps original storage unchanged.
      * 新しいシーケンスを作成し元の格納内容を保持することを検証します。
+     *
+     * @return void
      */
     public function testAppendConcatAndSlices(): void
     {
@@ -71,6 +77,8 @@ final class VecTest extends TestCase
     /**
      * Splits sequences into nonempty chunks, including the trailing remainder.
      * 末尾の余りを含め、空でないチャンクへ分割することを検証します。
+     *
+     * @return void
      */
     public function testChunkAndPartition(): void
     {
@@ -84,6 +92,8 @@ final class VecTest extends TestCase
     /**
      * Rejects invalid slice and chunk sizes consistently.
      * 不正な切り出し・チャンクのサイズを一貫して拒否することを検証します。
+     *
+     * @return void
      */
     public function testInvalidSizes(): void
     {
@@ -106,6 +116,8 @@ final class VecTest extends TestCase
     /**
      * Deduplicates in encounter order using strictly typed scalar keys.
      * 型を区別したスカラーキーで最初の出現順に重複排除することを検証します。
+     *
+     * @return void
      */
     public function testUniqueBy(): void
     {
@@ -121,6 +133,8 @@ final class VecTest extends TestCase
     /**
      * Indexes values without silently discarding duplicates.
      * 重複を暗黙に捨てずに値へキーを付けられることを検証します。
+     *
+     * @return void
      */
     public function testKeyByAndSort(): void
     {
@@ -135,6 +149,8 @@ final class VecTest extends TestCase
     /**
      * Checks map identity and composition over many deterministic sequences.
      * 複数の決定的な入力でmapの恒等則と合成則を検証します。
+     *
+     * @return void
      */
     public function testMapLaws(): void
     {

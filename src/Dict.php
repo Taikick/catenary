@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections;
+namespace Catenary;
 
 use Countable;
 use InvalidArgumentException;
 use IteratorAggregate;
-use Taikick\Collections\Internal\Key;
+use Catenary\Internal\Key;
 use Traversable;
 
 /**
@@ -19,7 +19,7 @@ use Traversable;
  *
  * @template-covariant K of int|string = never
  * @template-covariant V = never
- * @implements IteratorAggregate<int, array{K, V}>
+ * @implements \IteratorAggregate<int, array{K, V}>
  */
 final readonly class Dict implements Countable, IteratorAggregate
 {
@@ -28,6 +28,7 @@ final readonly class Dict implements Countable, IteratorAggregate
      * 型を区別して符号化したキーで索引付けされた組を保持します。
      *
      * @param array<string, array{K, V}> $entries
+     * @return void
      */
     private function __construct(private array $entries = [])
     {
@@ -37,7 +38,7 @@ final readonly class Dict implements Countable, IteratorAggregate
      * Creates an empty dictionary compatible with any key and value types.
      * 任意のキー型・値型と互換性を持つ空の辞書を作成します。
      *
-     * @return Dict<never, never>
+     * @return \Catenary\Dict<never, never>
      */
     public static function empty(): Dict
     {
@@ -51,8 +52,8 @@ final readonly class Dict implements Countable, IteratorAggregate
      * @template KNew of int|string = never
      * @template VNew = never
      * @param iterable<mixed, array{KNew, VNew}> $pairs
-     * @return ($pairs is array{} ? Dict<never, never> : Dict<KNew, VNew>)
-     * @throws InvalidArgumentException For a duplicate key. / キーが重複した場合。
+     * @return ($pairs is array{} ? \Catenary\Dict<never, never> : \Catenary\Dict<KNew, VNew>)
+     * @throws \InvalidArgumentException For a duplicate key. / キーが重複した場合。
      */
     public static function fromPairs(iterable $pairs): Dict
     {
@@ -61,13 +62,13 @@ final readonly class Dict implements Countable, IteratorAggregate
         }
         $entries = [];
         foreach ($pairs as [$key, $value]) {
-            $encoded = Key::encode($key);
+            $encoded = Key::encode(key: $key);
             if (isset($entries[$encoded])) {
                 throw new InvalidArgumentException('Duplicate dictionary key. Use with() for explicit replacement.');
             }
             $entries[$encoded] = [$key, $value];
         }
-        return new self($entries);
+        return new self(entries: $entries);
     }
 
     /**
@@ -85,7 +86,7 @@ final readonly class Dict implements Countable, IteratorAggregate
      * Iterates over key-value pairs with zero-based sequence indexes.
      * ゼロ始まりの連番でキーと値の組を走査します。
      *
-     * @return Traversable<int, array{K, V}>
+     * @return \Traversable<int, array{K, V}>
      */
     #[\Override]
     public function getIterator(): Traversable
@@ -98,6 +99,8 @@ final readonly class Dict implements Countable, IteratorAggregate
     /**
      * Returns the entry count in constant time.
      * 登録件数を定数時間で返します。
+     *
+     * @return int
      */
     #[\Override]
     public function count(): int
@@ -108,6 +111,8 @@ final readonly class Dict implements Countable, IteratorAggregate
     /**
      * Checks whether the dictionary has no entries.
      * 辞書に登録値がないかどうかを調べます。
+     *
+     * @return bool
      */
     public function isEmpty(): bool
     {
@@ -117,22 +122,26 @@ final readonly class Dict implements Countable, IteratorAggregate
     /**
      * Checks key presence without confusing null values with missing entries.
      * nullの値を欠損と混同せずにキーの存在を調べます。
+     *
+     * @param int|string $key
+     * @return bool
      */
     public function has(int|string $key): bool
     {
-        return isset($this->entries[Key::encode($key)]);
+        return isset($this->entries[Key::encode(key: $key)]);
     }
 
     /**
      * Looks up a strictly typed key and preserves a present null value.
      * キーの型を厳密に区別して検索し、存在するnullを保持します。
      *
-     * @return Option<V>
+     * @return \Catenary\Option<V>
+     * @param int|string $key
      */
     public function get(int|string $key): Option
     {
-        $encoded = Key::encode($key);
-        return isset($this->entries[$encoded]) ? Option::some($this->entries[$encoded][1]) : Option::none();
+        $encoded = Key::encode(key: $key);
+        return isset($this->entries[$encoded]) ? Option::some(value: $this->entries[$encoded][1]) : Option::none();
     }
 
     /**
@@ -143,24 +152,25 @@ final readonly class Dict implements Countable, IteratorAggregate
      * @template VAdded
      * @param KAdded $key
      * @param VAdded $value
-     * @return Dict<K|KAdded, V|VAdded>
+     * @return \Catenary\Dict<K|KAdded, V|VAdded>
      */
     public function with(int|string $key, mixed $value): Dict
     {
-        return new self([...$this->entries, Key::encode($key) => [$key, $value]]);
+        return new self(entries: [...$this->entries, Key::encode(key: $key) => [$key, $value]]);
     }
 
     /**
      * Removes a key from a new dictionary; absent keys have no effect.
      * 新しい辞書からキーを除去します。存在しないキーは結果に影響しません。
      *
-     * @return Dict<K, V>
+     * @return \Catenary\Dict<K, V>
+     * @param int|string $key
      */
     public function without(int|string $key): Dict
     {
         $entries = $this->entries;
-        unset($entries[Key::encode($key)]);
-        return new self($entries);
+        unset($entries[Key::encode(key: $key)]);
+        return new self(entries: $entries);
     }
 
     /**
@@ -169,7 +179,7 @@ final readonly class Dict implements Countable, IteratorAggregate
      *
      * @template U
      * @param callable(V, K): U $mapper
-     * @return Dict<K, U>
+     * @return \Catenary\Dict<K, U>
      */
     public function mapValues(callable $mapper): Dict
     {
@@ -177,14 +187,14 @@ final readonly class Dict implements Countable, IteratorAggregate
         foreach ($this->entries as $encoded => [$key, $value]) {
             $entries[$encoded] = [$key, $mapper($value, $key)];
         }
-        return new self($entries);
+        return new self(entries: $entries);
     }
 
     /**
      * Returns keys in their insertion order, retaining their original types.
      * 元の型を維持したキーを挿入順で返します。
      *
-     * @return Vec<K>
+     * @return \Catenary\Vec<K>
      */
     public function keys(): Vec
     {
@@ -199,7 +209,7 @@ final readonly class Dict implements Countable, IteratorAggregate
      * Returns values in their keys' insertion order.
      * 対応するキーの挿入順に値を返します。
      *
-     * @return Vec<V>
+     * @return \Catenary\Vec<V>
      */
     public function values(): Vec
     {

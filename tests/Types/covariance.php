@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections\Tests\Types;
+namespace Catenary\Tests\Types;
 
 use DateTimeImmutable;
 use DateTimeInterface;
-use Taikick\Collections\Dict;
-use Taikick\Collections\Option;
-use Taikick\Collections\Stream;
-use Taikick\Collections\Vec;
+use Catenary\Dict;
+use Catenary\Option;
+use Catenary\Stream;
+use Catenary\Vec;
 
 /**
  * Accepts containers of the date interface through a common consumer boundary.
  * 共通の利用側境界で日付インターフェースのコンテナを受け入れます。
  *
- * @param Vec<DateTimeInterface> $values
- * @param Dict<int|string, DateTimeInterface> $indexed
- * @param Option<DateTimeInterface> $optional
- * @param Stream<DateTimeInterface> $stream
+ * @param \Catenary\Vec<\DateTimeInterface> $values
+ * @param \Catenary\Dict<int|string, \DateTimeInterface> $indexed
+ * @param \Catenary\Option<\DateTimeInterface> $optional
+ * @param \Catenary\Stream<\DateTimeInterface> $stream
  * @return list<string>
  */
 function dateLabels(Vec $values, Dict $indexed, Option $optional, Stream $stream): array
@@ -33,16 +33,27 @@ function dateLabels(Vec $values, Dict $indexed, Option $optional, Stream $stream
 /**
  * Proves subtype substitution, empty-container compatibility and impure callbacks.
  * 派生型の代入、空コンテナの互換性、副作用のあるコールバックの許容を検証します。
+ *
+ * @param \DateTimeImmutable $date
+ * @return void
  */
 function supportedVariance(DateTimeImmutable $date): void
 {
+    $dates = Vec::of($date);
     echo implode(',', dateLabels(
-        Vec::of($date),
-        Dict::fromPairs([['date', $date]]),
-        Option::some($date),
-        Stream::fromFactory(fn (): array => [$date]),
+        values: Vec::fromIterable($dates),
+        indexed: Dict::fromPairs([['date', $date]]),
+        optional: $dates->find(fn (DateTimeInterface $value): bool => $value->getTimestamp() > 0),
+        stream: Stream::fromFactory(fn (): array => [$date]),
     ));
-    echo implode(',', dateLabels(Vec::empty(), Dict::empty(), Option::none(), Vec::empty()->stream()));
+    echo (int) $dates->any(fn (DateTimeInterface $value): bool => $value->getTimestamp() > 0);
+    echo (int) $dates->every(fn (DateTimeInterface $value): bool => $value->getTimestamp() > 0);
+    echo implode(',', dateLabels(
+        values: Vec::empty(),
+        indexed: Dict::empty(),
+        optional: Option::none(),
+        stream: Vec::empty()->stream(),
+    ));
     $visits = 0;
     Vec::of($date)->map(function (DateTimeInterface $value) use (&$visits): string {
         ++$visits;

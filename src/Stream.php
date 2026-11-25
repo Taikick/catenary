@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections;
+namespace Catenary;
 
 use Closure;
 use Generator;
@@ -18,7 +18,7 @@ use Traversable;
  * 値はキャッシュしません。生成処理は毎回新しいiterableを返す必要があります。
  *
  * @template-covariant T
- * @implements IteratorAggregate<int, T>
+ * @implements \IteratorAggregate<int, T>
  */
 final readonly class Stream implements IteratorAggregate
 {
@@ -26,7 +26,8 @@ final readonly class Stream implements IteratorAggregate
      * Stores the factory without opening its source.
      * 入力を開かずに生成処理を保持します。
      *
-     * @param Closure(): iterable<mixed, T> $factory
+     * @param \Closure(): iterable<mixed, T> $factory
+     * @return void
      */
     private function __construct(private Closure $factory)
     {
@@ -38,18 +39,18 @@ final readonly class Stream implements IteratorAggregate
      *
      * @template U
      * @param callable(): iterable<mixed, U> $factory
-     * @return Stream<U>
+     * @return \Catenary\Stream<U>
      */
     public static function fromFactory(callable $factory): Stream
     {
-        return new self(Closure::fromCallable($factory));
+        return new self(factory: Closure::fromCallable($factory));
     }
 
     /**
      * Opens the source on first iteration and discards its keys.
      * 最初の反復時に入力を開き、入力のキーを捨てて走査します。
      *
-     * @return Traversable<int, T>
+     * @return \Traversable<int, T>
      */
     #[\Override]
     public function getIterator(): Traversable
@@ -65,7 +66,7 @@ final readonly class Stream implements IteratorAggregate
      *
      * @template U
      * @param callable(T): U $mapper
-     * @return Stream<U>
+     * @return \Catenary\Stream<U>
      */
     public function map(callable $mapper): Stream
     {
@@ -81,7 +82,7 @@ final readonly class Stream implements IteratorAggregate
      * 条件を満たす値を入力順に遅延して残します。
      *
      * @param callable(T): bool $predicate
-     * @return Stream<T>
+     * @return \Catenary\Stream<T>
      */
     public function filter(callable $predicate): Stream
     {
@@ -99,8 +100,8 @@ final readonly class Stream implements IteratorAggregate
      * 変換結果の存在する値を、明示的なnullを含めて遅延抽出します。
      *
      * @template U
-     * @param callable(T): Option<U> $mapper
-     * @return Stream<U>
+     * @param callable(T): \Catenary\Option<U> $mapper
+     * @return \Catenary\Stream<U>
      */
     public function filterMap(callable $mapper): Stream
     {
@@ -120,7 +121,7 @@ final readonly class Stream implements IteratorAggregate
      *
      * @template U
      * @param callable(T): iterable<mixed, U> $mapper
-     * @return Stream<U>
+     * @return \Catenary\Stream<U>
      */
     public function flatMap(callable $mapper): Stream
     {
@@ -137,8 +138,9 @@ final readonly class Stream implements IteratorAggregate
      * Yields at most count values without reading a subsequent source value.
      * 次の入力値を余分に読まず、指定個数を上限として値を返します。
      *
-     * @return Stream<T>
-     * @throws InvalidArgumentException For a negative count, immediately. / 個数が負の場合に即座に送出します。
+     * @return \Catenary\Stream<T>
+     * @throws \InvalidArgumentException For a negative count, immediately. / 個数が負の場合に即座に送出します。
+     * @param int $count
      */
     public function take(int $count): Stream
     {
@@ -163,8 +165,9 @@ final readonly class Stream implements IteratorAggregate
      * Lazily skips count leading values before yielding subsequent values.
      * 先頭の指定個数を遅延して読み飛ばし、その後の値を返します。
      *
-     * @return Stream<T>
-     * @throws InvalidArgumentException For a negative count, immediately. / 個数が負の場合に即座に送出します。
+     * @return \Catenary\Stream<T>
+     * @throws \InvalidArgumentException For a negative count, immediately. / 個数が負の場合に即座に送出します。
+     * @param int $count
      */
     public function drop(int $count): Stream
     {
@@ -187,12 +190,12 @@ final readonly class Stream implements IteratorAggregate
      * Returns the first output value and closes this traversal early.
      * 最初の出力値を返し、この走査を途中で終了します。
      *
-     * @return Option<T>
+     * @return \Catenary\Option<T>
      */
     public function first(): Option
     {
         foreach ($this as $value) {
-            return Option::some($value);
+            return Option::some(value: $value);
         }
         return Option::none();
     }
@@ -200,6 +203,8 @@ final readonly class Stream implements IteratorAggregate
     /**
      * Checks for an output value without materializing the stream.
      * ストリームを実体化せず、出力値があるかを調べます。
+     *
+     * @return bool
      */
     public function isEmpty(): bool
     {
@@ -211,6 +216,7 @@ final readonly class Stream implements IteratorAggregate
      * 最初に条件を満たした時点で終了し、空の場合はfalseを返します。
      *
      * @param callable(T): bool $predicate
+     * @return bool
      */
     public function any(callable $predicate): bool
     {
@@ -227,6 +233,7 @@ final readonly class Stream implements IteratorAggregate
      * 最初に条件を満たさなかった時点で終了し、空の場合はtrueを返します。
      *
      * @param callable(T): bool $predicate
+     * @return bool
      */
     public function every(callable $predicate): bool
     {
@@ -261,7 +268,7 @@ final readonly class Stream implements IteratorAggregate
      * Materializes a finite stream into an explicit immutable snapshot.
      * 有限ストリームを明示的な不変スナップショットとして実体化します。
      *
-     * @return Vec<T>
+     * @return \Catenary\Vec<T>
      */
     public function toVec(): Vec
     {

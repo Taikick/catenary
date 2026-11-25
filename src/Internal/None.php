@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections\Internal;
+namespace Catenary\Internal;
 
-use Taikick\Collections\Option;
+use Catenary\Option;
 use Throwable;
 use UnderflowException;
 
@@ -13,13 +13,15 @@ use UnderflowException;
  * 欠損状態を表します。生成にはOption::none()を使用します。
  *
  * @internal
- * @extends Option<never>
+ * @extends \Catenary\Option<never>
  */
 final readonly class None extends Option
 {
     /**
      * Always reports absence.
      * 値が存在しないことを常に返します。
+     *
+     * @return bool
      */
     #[\Override]
     public function isSome(): bool
@@ -31,8 +33,9 @@ final readonly class None extends Option
      * Throws the supplied exception or a standard missing-value exception.
      * 指定された例外、または欠損値を示す標準例外を送出します。
      *
-     * @param (callable(): Throwable)|null $exception
-     * @throws Throwable Always throws. / 常に例外を送出します。
+     * @param callable(): \Throwable|null $exception
+     * @throws \Throwable Always throws. / 常に例外を送出します。
+     * @return never
      */
     #[\Override]
     public function getOrThrow(?callable $exception = null): never

@@ -1,100 +1,157 @@
-# Typed Collections
+# Catenary
 
-[![CI](https://github.com/Taikick/typed-collections/actions/workflows/ci.yml/badge.svg)](https://github.com/Taikick/typed-collections/actions/workflows/ci.yml)
-[日本語](README.ja.md)
+[![CI](https://github.com/Taikick/catenary/actions/workflows/ci.yml/badge.svg)](https://github.com/Taikick/catenary/actions/workflows/ci.yml)
+[English](README.en.md)
 
-Immutable PHP collections and `Option` with tested PHPStan and Psalm inference.
-PHP **8.3+**, MIT licensed, **zero runtime dependencies**, no framework integration required.
+PHPの配列や`iterable`を、型付きのメソッドチェーンで扱うためのライブラリです。値の変換・絞り込み・検索・集約に加え、値がない場合の処理を`Option`で表現できます。
 
-**Development preview:** the initial API is on `main`. No stable release or Packagist package has been published yet.
+**PHP 8.3以上・MITライセンス・実行時の外部依存なし。** PHPStanとPsalmの型推論をテストし、フレームワークに依存せず利用できます。
+
+**現在は未リリースの開発版です。安定版の公開・Packagist登録はまだ行っていません。** `main`を利用する場合は、利用先の`composer.lock`でレビュー済みコミットを固定してください。旧名からの変更は[移行ガイド](docs/migration-to-catenary.md)を参照してください。
+
+## 値を変換して絞り込む
 
 ```php
-use Taikick\Collections\Option;
-use Taikick\Collections\Vec;
+use Catenary\Vec;
+
+$numbers = Vec::of(1, 2, 3, 4);
+
+$result = $numbers
+    ->filter(predicate: fn (int $number): bool => $number % 2 === 0)
+    ->map(mapper: fn (int $number): int => $number * 10);
+
+$result->toList();  // [20, 40]
+$numbers->toList(); // [1, 2, 3, 4]：元の並びは変更しない
+
+$total = $result->fold(initial: 0, reducer: fn (int $sum, int $number): int => $sum + $number);
+// 60
+```
+
+`Vec`は順序を持つリストです。`map`は各値を変換し、`filter`は条件に合う値を残し、`fold`は初期値から一つの結果へ集約します。これらの操作は呼び出した時点で評価されます。配列やジェネレータから作るときは`Vec::fromIterable(items: $items)`を使います。入力のキーは捨て、0からの連続した添字になります。
+
+| 型 | 扱うもの |
+| --- | --- |
+| `Vec<T>` | 即時評価する順序付きリスト。変換しても元のリストを変更しない。 |
+| `Option<T>` | 値の存在・欠損。存在する`null`と値の欠損を区別する。 |
+| `Dict<K, V>` | 挿入順を保持する辞書。整数キーと文字列キーを区別する。 |
+| `Stream<T>` | 走査時に値を生成する遅延処理。必要な範囲だけ読み出せる。 |
+
+## 検索と条件判定
+
+```php
+use Catenary\Vec;
+
+$numbers = Vec::of(2, 5, 8);
+
+$found = $numbers->find(predicate: fn (int $number): bool => $number > 5);
+$found->getOrElse(fallback: fn (): int => 0); // 8
+
+$numbers->any(predicate: fn (int $number): bool => $number > 10); // false
+$numbers->every(predicate: fn (int $number): bool => $number > 0); // true
+$numbers->last()->getOrThrow(); // 8
+```
+
+`find`は最初に一致した値を`Option`で返します。見つからなければ`None`です。`any`は一つでも条件を満たすか、`every`はすべて満たすかを判定し、結果が決まった時点で走査を止めます。空のリストでは`find`・`first`・`last`は`None`、`any`は`false`、`every`は`true`になり、判定コールバックは呼び出されません。
+
+`first`・`last`・`at`は存在する`null`も保持します。`Vec::fromIterable(items: $vec)`へ既存の`Vec`を渡した場合は、そのインスタンスをそのまま返します。
+
+## 値がない場合を扱う
+
+```php
+use Catenary\Option;
+use Catenary\Vec;
 
 $names = Vec::of(' Ada ', '', ' Grace ')
-    ->map('trim')
-    ->filterMap(fn (string $name) => $name === '' ? Option::none() : Option::some($name))
-    ->map('strtoupper'); // Vec<string>
+    ->map(mapper: 'trim')
+    ->filterMap(mapper: fn (string $name) => $name === '' ? Option::none() : Option::some(value: $name))
+    ->map(mapper: 'strtoupper');
 
-$first = $names->first()->getOrElse(fn () => 'UNKNOWN');
-// $names->toList() === ['ADA', 'GRACE']; $first === 'ADA'
+$names->toList(); // ['ADA', 'GRACE']
+$names->first()->getOrElse(fallback: fn (): string => 'UNKNOWN'); // 'ADA'
+
+Option::some(value: null)->isSome();                         // true
+Option::fromNullable(value: null)->isNone();                 // true
+Option::some(value: 1)->map(mapper: fn () => null)->isSome();         // true
+Option::some(value: 1)->mapNullable(mapper: fn () => null)->isNone();  // true
 ```
 
-## Four explicit abstractions
+`filterMap`は、変換結果のうち`Some`の値だけをリストに残します。`Option::map`は変換後の`null`を値として保持し、`mapNullable`は`null`を欠損へ変えます。
 
-| Type | Contract |
-| --- | --- |
-| `Option<T>` | Present value or absence. `some(null)` is present; `fromNullable(null)` is absent. |
-| `Vec<T>` | Eager, ordered list. Operations return new lists; iterable keys are discarded. |
-| `Dict<K, V>` | Insertion-ordered dictionary. Integer `1` and string `'1'` are different keys. |
-| `Stream<T>` | Lazy pipeline from a factory. Every traversal opens a fresh source; no implicit cache. |
+欠損時に値用のコールバックは実行しません。`getOrElse`の代替処理は欠損時だけ実行します。`fold($ifNone, $ifSome)`は対応する一方だけを実行し、`getOrThrow`には必要時に例外を作る処理も渡せます。
 
-Collections are **shallowly immutable**: their structure is immutable, but contained objects are shared and may be mutable. Generic constraints are checked by static analyzers; PHP does not enforce generic element types at runtime. No magic methods, macros or analyzer plugins are required.
-
-### Present null is not absence
+## キーを保って値を扱う
 
 ```php
-Option::some(null)->isSome();                  // true
-Option::fromNullable(null)->isNone();          // true
-Option::some(1)->map(fn () => null)->isSome();  // true
-Option::some(1)->mapNullable(fn () => null)->isNone(); // true
+use Catenary\Dict;
+
+$labels = Dict::fromPairs(pairs: [[1, '整数のキー'], ['1', '文字列のキー'], ['memo', null]]);
+
+$labels->get(key: 1)->getOrThrow();     // '整数のキー'
+$labels->get(key: '1')->getOrThrow();   // '文字列のキー'
+$labels->get(key: 'memo')->isSome();    // true
+$labels->get(key: 'missing')->isNone(); // true
+
+$updated = $labels->with(key: 'memo', value: '追記');
+$labels->get(key: 'memo')->getOrThrow(); // null：元の辞書は変更しない
 ```
 
-`map`, `flatMap` and `filter` never call a value callback on absence. `getOrElse` evaluates its fallback lazily. `fold($ifNone, $ifSome)` evaluates exactly one branch. `getOrThrow` accepts an optional exception factory.
+`Dict::fromPairs`と`Vec::keyBy`は重複キーを`InvalidArgumentException`で拒否します。上書きには`with`を使い、既存キーの位置は保ちます。走査と`toPairs()`は`[キー, 値]`の組を返すため、整数`1`と文字列`'1'`を混同しません。
 
-### Keys have explicit types
-
-```php
-use Taikick\Collections\Dict;
-
-$dict = Dict::fromPairs([[1, 'integer'], ['1', 'string'], ['empty', null]]);
-$dict->get(1)->getOrThrow();       // 'integer'
-$dict->get('1')->getOrThrow();     // 'string'
-$dict->get('empty')->isSome();     // true
-$dict->get('missing')->isNone();   // true
-$updated = $dict->with('empty', 'replaced'); // original unchanged
-```
-
-`fromPairs` and `Vec::keyBy` reject duplicate keys with `InvalidArgumentException`. Use `with` for explicit replacement; the existing insertion position is retained. Iteration and `toPairs()` produce `[key, value]` pairs. There is intentionally no implicit PHP-array conversion that would merge numeric-string and integer keys.
-
-### Laziness without hidden retention
+## 必要な分だけ生成する
 
 ```php
-use Taikick\Collections\Stream;
+use Catenary\Stream;
 
-$stream = Stream::fromFactory(function (): Generator {
-    for ($n = 0; ; ++$n) {
-        yield $n;
+$stream = Stream::fromFactory(factory: function (): Generator {
+    for ($number = 0; ; ++$number) {
+        yield $number;
     }
 });
 
-$snapshot = $stream->map(fn (int $n) => $n * 2)->take(3)->toVec();
-// [0, 2, 4]; exactly three source values requested
+$snapshot = $stream
+    ->map(mapper: fn (int $number): int => $number * 2)
+    ->take(count: 3)
+    ->toVec();
+
+$snapshot->toList(); // [0, 2, 4]
 ```
 
-The factory must return a **fresh iterable** on every invocation. Do not capture and return a previously created generator. Terminal operations open a new traversal and can repeat side effects. Call `toVec()` once to create a reusable snapshot. Factories may read changing data, so repeated results need not be identical.
+生成処理は呼ばれるたびに新しい`iterable`を返します。作成済みジェネレータの使い回しはできません。終端操作ごとに走査が始まるため、副作用が再実行され、外部データが変われば結果も変わります。結果を再利用する場合は`toVec()`で一度リストにします。
 
-`take(0)` does not open the source. `first` and `isEmpty` inspect at most one **output** value: an upstream filter can still scan many source values, or never terminate on an infinite source with no match. `any` and `every` short-circuit. `fold` and `toVec` require finite output. Source cleanup belongs in generator `finally` blocks; early termination releases factory-owned generators.
+`take(0)`は入力を開きません。`first`・`isEmpty`が確認するのは高々一つの**出力要素**です。前段の`filter`で多くの入力を読む場合があり、無限入力に一致がなければ終了しません。`fold`・`toVec`には有限の出力が必要です。入力資源の解放はジェネレータの`finally`で記述します。
 
-## Installation during development
+## 導入
 
-Until a release is registered on Packagist, add the repository to the consuming project's `composer.json`:
+Packagist登録前は、利用先の`composer.json`にVCSリポジトリと依存を追加します。
 
 ```json
 {
     "repositories": [
-        {"type": "vcs", "url": "https://github.com/Taikick/typed-collections"}
+        {"type": "vcs", "url": "https://github.com/Taikick/catenary"}
     ],
-    "require": {"taikick/typed-collections": "dev-main"}
+    "require": {"catenary/collections": "dev-main"}
 }
 ```
 
-Then run `composer update taikick/typed-collections`. Commit the consuming project's lockfile so deployments use a reviewed commit. `dev-main` is not a stability guarantee.
+```sh
+composer update catenary/collections --with-dependencies
+```
 
-## Development and verification
+更新した`composer.lock`をレビュー・保存し、配備には`composer install`を使います。`dev-main`は安定性の保証ではありません。旧パッケージを利用中の場合は[改名に伴う移行手順](docs/migration-to-catenary.md)に従ってください。
 
-Use a current PHP 8.3 patch release (at least 8.3.16 for Psalm) or newer.
+## 型・不変性・性能の契約
+
+- 要素のジェネリクスはPHPStan・Psalmで確認します。PHP実行時に格納した全要素の型を検査する仕組みではありません。
+- 不変性は浅いものです。格納構造は変更しませんが、要素内のオブジェクトや参照を再帰的に複製・凍結しません。
+- `Vec`・`Dict`はPHP配列を利用します。`append`・`with`を大量に繰り返すより、一括構築に`fromIterable`・`fromPairs`を使うとコピーを抑えられます。
+- コールバックの例外はそのまま伝播します。評価時点・呼出し順序・キー・`null`の扱いも公開契約です。
+- オブジェクトの`serialize()`結果は安定した保存形式として保証しません。保存や通信では、用途に合わせて値を明示的に変換してください。
+
+詳細は[API契約と計算量](docs/contracts.md)に記載しています。
+
+## 開発と検証
+
+開発ツールには新しいPHPパッチ版を使い、対応条件は`composer.json`で確認してください。
 
 ```sh
 composer install
@@ -102,14 +159,6 @@ composer check
 composer bench
 ```
 
-`composer check` runs runtime tests, PHPStan at maximum level, Psalm at level 1, positive inference fixtures, negative type fixtures, bilingual documentation checks and PSR-12 formatting. CI tests PHP 8.3, 8.4 and 8.5, including coverage and a minimum-dependency job. No analyzer baselines or source suppressions are used.
+`composer check`は実行テスト、PHPStan最大レベル、Psalmレベル1、型推論・不正な型の拒否、英日PHPDoc、PSR-12、実行例を検証します。CIはPHP 8.3・8.4・8.5、最小依存、開発依存なしの導入を検証対象にしています。全クラスと名前付き関数・メソッドの説明は英語と日本語の両方で保守します。
 
-Every class and named function/method has an **English and Japanese** description, enforced with an AST-based documentation check. Runtime tests cover nulls, strict keys, immutability, algebraic laws, callback failures, laziness and cleanup.
-
-See [API contracts and complexity](docs/contracts.md), [maintenance and compatibility](CONTRIBUTING.md), [benchmarks](benchmarks/README.md), and the [executable example](examples/basic.php).
-
-## Scope
-
-Typed PHP libraries such as [fp4php/functional](https://github.com/fp4php/functional) and [loophp/collection](https://github.com/loophp/collection) already exist. This project explores a deliberately small chainable API with explicit evaluation, null and key semantics, and inference tests on both analyzers. It does not claim to be universally faster or a drop-in replacement for ScalikePHP.
-
-There is no Laravel/Eloquent coupling, serialization format, persistence layer or application-specific code. `Result`, async operations and broad collection interfaces are not part of this initial API.
+[開発・互換性方針](CONTRIBUTING.md) · [API契約](docs/contracts.md) · [ベンチマーク](benchmarks/README.md) · [実行例](examples/basic.php) · [移行ガイド](docs/migration-to-catenary.md) · [MITライセンス](LICENSE)

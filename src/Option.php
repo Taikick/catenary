@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections;
+namespace Catenary;
 
-use Taikick\Collections\Internal\None;
-use Taikick\Collections\Internal\Some;
+use Catenary\Internal\None;
+use Catenary\Internal\Some;
 use Throwable;
 use UnderflowException;
 
@@ -23,18 +23,18 @@ abstract readonly class Option
      *
      * @template U
      * @param U $value
-     * @return Option<U>
+     * @return \Catenary\Option<U>
      */
     final public static function some(mixed $value): Option
     {
-        return new Some($value);
+        return new Some(value: $value);
     }
 
     /**
      * Creates an absent option, compatible with any value type.
      * 任意の値型と互換性のある欠損状態を作成します。
      *
-     * @return Option<never>
+     * @return \Catenary\Option<never>
      */
     final public static function none(): Option
     {
@@ -47,22 +47,26 @@ abstract readonly class Option
      *
      * @template U
      * @param U|null $value
-     * @return Option<U>
+     * @return \Catenary\Option<U>
      */
     final public static function fromNullable(mixed $value): Option
     {
-        return $value === null ? self::none() : self::some($value);
+        return $value === null ? self::none() : self::some(value: $value);
     }
 
     /**
      * Reports whether a value is present, even when that value is null.
      * 値がnullの場合も含め、値が存在するかを返します。
+     *
+     * @return bool
      */
     abstract public function isSome(): bool;
 
     /**
      * Reports whether the option is absent.
      * 値が欠損しているかを返します。
+     *
+     * @return bool
      */
     final public function isNone(): bool
     {
@@ -73,10 +77,10 @@ abstract readonly class Option
      * Returns the value or throws a lazily created exception on absence.
      * 値を返し、欠損時は必要になった時点で生成した例外を送出します。
      *
-     * @param (callable(): Throwable)|null $exception
+     * @param callable(): \Throwable|null $exception
      * @return T
-     * @throws UnderflowException When absent and no exception factory is supplied. / 欠損時に例外生成処理の指定がない場合。
-     * @throws Throwable The exception produced by the supplied factory. / 指定した処理が生成する例外。
+     * @throws \UnderflowException When absent and no exception factory is supplied. / 欠損時に例外生成処理の指定がない場合。
+     * @throws \Throwable The exception produced by the supplied factory. / 指定した処理が生成する例外。
      */
     abstract public function getOrThrow(?callable $exception = null): mixed;
 
@@ -99,11 +103,11 @@ abstract readonly class Option
      *
      * @template U
      * @param callable(T): U $mapper
-     * @return Option<U>
+     * @return \Catenary\Option<U>
      */
     final public function map(callable $mapper): Option
     {
-        return $this->isSome() ? self::some($mapper($this->getOrThrow())) : self::none();
+        return $this->isSome() ? self::some(value: $mapper($this->getOrThrow())) : self::none();
     }
 
     /**
@@ -112,11 +116,11 @@ abstract readonly class Option
      *
      * @template U
      * @param callable(T): (U|null) $mapper
-     * @return Option<U>
+     * @return \Catenary\Option<U>
      */
     final public function mapNullable(callable $mapper): Option
     {
-        return $this->isSome() ? self::fromNullable($mapper($this->getOrThrow())) : self::none();
+        return $this->isSome() ? self::fromNullable(value: $mapper($this->getOrThrow())) : self::none();
     }
 
     /**
@@ -124,8 +128,8 @@ abstract readonly class Option
      * Optionを返す処理を、Optionを入れ子にせず連結します。
      *
      * @template U
-     * @param callable(T): Option<U> $mapper
-     * @return Option<U>
+     * @param callable(T): \Catenary\Option<U> $mapper
+     * @return \Catenary\Option<U>
      */
     final public function flatMap(callable $mapper): Option
     {
@@ -137,7 +141,7 @@ abstract readonly class Option
      * 存在する値が条件を満たす場合だけ保持します。
      *
      * @param callable(T): bool $predicate
-     * @return Option<T>
+     * @return \Catenary\Option<T>
      */
     final public function filter(callable $predicate): Option
     {

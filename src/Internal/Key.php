@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Taikick\Collections\Internal;
+namespace Catenary\Internal;
 
 /**
  * Encodes scalar keys without PHP's numeric-string key coercion.
@@ -15,6 +15,8 @@ final class Key
     /**
      * Prevents constructing this stateless internal utility.
      * 状態を持たない内部ユーティリティの生成を防ぎます。
+     *
+     * @return void
      */
     private function __construct()
     {
@@ -23,6 +25,9 @@ final class Key
     /**
      * Produces a collision-free key for integers and strings.
      * 整数と文字列の間で衝突しないキーを生成します。
+     *
+     * @param int|string $key
+     * @return string
      */
     public static function encode(int|string $key): string
     {
