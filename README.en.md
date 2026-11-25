@@ -7,7 +7,7 @@ Typed method chains for PHP arrays and iterables: transform, filter, search and 
 
 **PHP 8.3+, MIT licensed, zero runtime dependencies.** PHPStan and Psalm inference is covered by tests. No framework integration is required.
 
-**Initial release: `v0.1.0` (2026-11-25).** This is a pre-1.0 API: minor versions may introduce breaking changes, while patches remain compatible. The package is not registered on Packagist; install the tagged version using the VCS configuration below. Existing users should read the [rename migration guide](docs/migration-to-catenary.md#english).
+**Latest release: `v0.2.0` (2026-11-25).** This is a pre-1.0 API: minor versions may introduce breaking changes, while patches remain compatible. The package is not registered on Packagist; install the tagged version using the VCS configuration below. Existing users should read the [rename migration guide](docs/migration-to-catenary.md#english).
 
 ## Transform and filter values
 
@@ -97,6 +97,34 @@ $labels->get(key: 'memo')->getOrThrow(); // null: the original is unchanged
 
 `Dict::fromPairs` and `Vec::keyBy` reject duplicate keys with `InvalidArgumentException`. Use `with` for replacement; the existing key keeps its position. Iteration and `toPairs()` produce `[key, value]` pairs, preserving the distinction between integer `1` and string `'1'`.
 
+### Filter, search, fold and merge dictionaries
+
+These six methods were added in `v0.2.0`.
+
+```php
+use Catenary\Dict;
+
+$amounts = Dict::fromPairs(pairs: [[1, 100], ['1', 200], ['extra', 50]]);
+
+$amounts->filter(predicate: fn (int $amount, int|string $key): bool => $amount >= 100)
+    ->toPairs(); // [[1, 100], ['1', 200]]
+$amounts->find(predicate: fn (int $amount, int|string $key): bool => $key === '1')
+    ->getOrThrow(); // ['1', 200]: preserves the key as well as its value
+$amounts->any(predicate: fn (int $amount): bool => $amount > 150);   // true
+$amounts->every(predicate: fn (int $amount): bool => $amount > 0);   // true
+$amounts->fold(
+    initial: 0,
+    reducer: fn (int $total, int $amount, int|string $key): int => $total + $amount,
+); // 350
+
+$amounts->merge(other: Dict::fromPairs(pairs: [['1', 250], ['new', 75]]))
+    ->toPairs(); // [[1, 100], ['1', 250], ['extra', 50], ['new', 75]]
+```
+
+Predicates receive value then key. `filter` visits all entries; `find`, `any` and `every` visit entries in insertion order until the result is known. On an empty dictionary they return an empty Dict, None, false and true respectively, without invoking the predicate. `find` returns `Option<array{K, V}>`, preserving a matching null value as `Some([key, null])`. The third reducer argument of `fold` is the key; an empty dictionary returns the exact initial value.
+
+`merge` takes the right-hand value for each matching typed key while keeping its original left-hand position. New keys append in right-hand order, and neither input dictionary changes. See the [API contracts](docs/contracts.md#dictキーの型を区別する辞書) for evaluation counts, types and complexity.
+
 ## Generate values on demand
 
 ```php
@@ -129,7 +157,7 @@ Add the VCS repository and tagged-version requirement to the consuming project's
     "repositories": [
         {"type": "vcs", "url": "https://github.com/Taikick/catenary"}
     ],
-    "require": {"catenary/collections": "^0.1.0"}
+    "require": {"catenary/collections": "^0.2.0"}
 }
 ```
 
@@ -137,7 +165,7 @@ Add the VCS repository and tagged-version requirement to the consuming project's
 composer update catenary/collections --with-dependencies
 ```
 
-`^0.1.0` allows versions from `0.1.0` up to, but excluding, `0.2.0`. Composer classifies the suffix-free `v0.1.0` tag as `stable`. API compatibility follows the [pre-1.0 policy](CONTRIBUTING.md#compatibility--互換性). Review and commit the resulting `composer.lock`; use `composer install` for deployment. Follow the [migration guide](docs/migration-to-catenary.md#english) when upgrading from the previous package name.
+`^0.2.0` allows versions from `0.2.0` up to, but excluding, `0.3.0`. Composer classifies the suffix-free `v0.2.0` tag as `stable`. API compatibility follows the [pre-1.0 policy](CONTRIBUTING.md#compatibility--互換性). Review and commit the resulting `composer.lock`; use `composer install` for deployment. Follow the [migration guide](docs/migration-to-catenary.md#english) when upgrading from the previous package name.
 
 Use `dev-main` only when intentionally trying unreleased changes, and keep the reviewed commit in the consuming project's `composer.lock`. The `main` branch may contain changes made after the latest tag.
 

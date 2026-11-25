@@ -145,6 +145,64 @@ final readonly class Dict implements Countable, IteratorAggregate
     }
 
     /**
+     * Returns the first matching key-value pair, stopping before later entries; no match yields None.
+     * 最初に一致したキーと値の組で走査を終了し、一致がなければNoneを返します。
+     *
+     * A null value remains present inside its pair; the predicate receives value then key in insertion order.
+     * nullの値も組の中に保持し、述語には挿入順で値・キーの順に渡します。
+     *
+     * @param callable(V, K): bool $predicate
+     * @return \Catenary\Option<array{K, V}>
+     * @throws \Throwable Propagates predicate exceptions unchanged. / 述語の例外をそのまま送出します。
+     */
+    public function find(callable $predicate): Option
+    {
+        foreach ($this->entries as $pair) {
+            [$key, $value] = $pair;
+            if ($predicate($value, $key)) {
+                return Option::some(value: $pair);
+            }
+        }
+        return Option::none();
+    }
+
+    /**
+     * Stops at the first accepted entry; empty dictionaries return false without invoking the predicate.
+     * 最初の一致で終了し、空辞書では述語を呼ばずfalseを返します。
+     *
+     * @param callable(V, K): bool $predicate
+     * @return bool
+     * @throws \Throwable Propagates predicate exceptions unchanged. / 述語の例外をそのまま送出します。
+     */
+    public function any(callable $predicate): bool
+    {
+        foreach ($this->entries as [$key, $value]) {
+            if ($predicate($value, $key)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Stops at the first rejected entry; empty dictionaries return true without invoking the predicate.
+     * 最初の不一致で終了し、空辞書では述語を呼ばずtrueを返します。
+     *
+     * @param callable(V, K): bool $predicate
+     * @return bool
+     * @throws \Throwable Propagates predicate exceptions unchanged. / 述語の例外をそのまま送出します。
+     */
+    public function every(callable $predicate): bool
+    {
+        foreach ($this->entries as [$key, $value]) {
+            if (!$predicate($value, $key)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Inserts or replaces a value in a new dictionary, preserving existing positions.
      * 新しい辞書へ値を挿入または置換し、既存キーの位置は保持します。
      *
@@ -160,6 +218,23 @@ final readonly class Dict implements Countable, IteratorAggregate
     }
 
     /**
+     * Combines dictionaries once, with right-hand values replacing exactly matching typed keys.
+     * 二つの辞書を一括結合し、型を含めて一致するキーを右側の値で置換します。
+     *
+     * Existing left positions stay fixed; new keys follow right insertion order without changing either source.
+     * 左側の既存位置を保持し、新規キーを右側の挿入順で追加して、元の両辞書は変更しません。
+     *
+     * @template KOther of int|string
+     * @template VOther
+     * @param \Catenary\Dict<KOther, VOther> $other
+     * @return \Catenary\Dict<K|KOther, V|VOther>
+     */
+    public function merge(Dict $other): Dict
+    {
+        return new self(entries: [...$this->entries, ...$other->entries]);
+    }
+
+    /**
      * Removes a key from a new dictionary; absent keys have no effect.
      * 新しい辞書からキーを除去します。存在しないキーは結果に影響しません。
      *
@@ -170,6 +245,26 @@ final readonly class Dict implements Countable, IteratorAggregate
     {
         $entries = $this->entries;
         unset($entries[Key::encode(key: $key)]);
+        return new self(entries: $entries);
+    }
+
+    /**
+     * Eagerly tests each entry once and retains matching values with their original typed keys and order.
+     * 各項目を即時に一回判定し、一致した値を元のキー型と順序のまま保持します。
+     *
+     * @param callable(V, K): bool $predicate
+     * @return \Catenary\Dict<K, V>
+     * @throws \Throwable Propagates predicate exceptions unchanged. / 述語の例外をそのまま送出します。
+     */
+    public function filter(callable $predicate): Dict
+    {
+        $entries = [];
+        foreach ($this->entries as $encoded => $pair) {
+            [$key, $value] = $pair;
+            if ($predicate($value, $key)) {
+                $entries[$encoded] = $pair;
+            }
+        }
         return new self(entries: $entries);
     }
 
@@ -188,6 +283,26 @@ final readonly class Dict implements Countable, IteratorAggregate
             $entries[$encoded] = [$key, $mapper($value, $key)];
         }
         return new self(entries: $entries);
+    }
+
+    /**
+     * Folds once in insertion order, passing accumulator, value and key; empty dictionaries return the initial value.
+     * 挿入順で一度集約し累積値・値・キーを渡します。空辞書では初期値をそのまま返します。
+     *
+     * @template A
+     * @template B
+     * @param A $initial
+     * @param callable(A|B, V, K): B $reducer
+     * @return A|B
+     * @throws \Throwable Propagates reducer exceptions unchanged. / 集約処理の例外をそのまま送出します。
+     */
+    public function fold(mixed $initial, callable $reducer): mixed
+    {
+        $accumulator = $initial;
+        foreach ($this->entries as [$key, $value]) {
+            $accumulator = $reducer($accumulator, $value, $key);
+        }
+        return $accumulator;
     }
 
     /**

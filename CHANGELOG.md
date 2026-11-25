@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-25
+
+Additive dictionary APIs; the PHP 8.3 runtime minimum is unchanged.
+辞書APIを追加するリリースで、実行時の最低PHP 8.3は変更しません。
+
+- Add eager `Dict::filter`, short-circuit `find` / `any` / `every`, left `fold` and immutable `merge`, preserving insertion order and strict integer/string key identity.
+  挿入順と整数・文字列キーの区別を保つ、即時抽出の`Dict::filter`、短絡する`find`・`any`・`every`、左畳み込みの`fold`、不変な`merge`を追加。
+- Return the first matching key-value pair from `Dict::find` as `Option<array{K, V}>`, including matching null values. Predicates receive value then key; reducers receive accumulator, value and key.
+  `Dict::find`は最初に一致するキーと値の組を`Option<array{K, V}>`で返し、nullの値も保持。述語は値・キー、集約は累積値・値・キーの順で呼び出す。
+- Merge with explicit right-hand replacement, keeping existing key positions and appending new right-hand keys in order. Neither input is modified and result key/value types widen to include both dictionaries.
+  結合は同じ型のキーを右側の値で明示置換し、既存位置と新規キーの順序を維持。両方の入力を変更せず、結果のキー型・値型は両辞書の型へ拡張。
+
 ## 0.1.0 — 2026-11-25
 
 Initial tagged release of the framework-independent PHP collection library.

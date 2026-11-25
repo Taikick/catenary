@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Catenary\Dict;
 use Catenary\Vec;
 
 require dirname(__DIR__) . '/vendor/autoload.php';
@@ -11,6 +12,8 @@ require dirname(__DIR__) . '/vendor/autoload.php';
  * ウォームアップ後に同等な操作を測定し、毎回の返却値を検証します。
  *
  * @param callable(): mixed $operation
+ * @param mixed $expected
+ * @param int $iterations
  * @return array{median_ms: float, median_additional_peak_bytes: int}
  */
 $measure = static function (callable $operation, mixed $expected, int $iterations): array {
@@ -119,6 +122,107 @@ $results['reuse_existing_vec'] = [
 ];
 if (Vec::fromIterable($snapshot) !== $snapshot) {
     throw new RuntimeException('Snapshot reuse must retain the Vec identity.');
+}
+
+$pairs = [];
+$rightPairs = [];
+$expectedMerged = [];
+$newPairs = [];
+$expectedFiltered = [];
+foreach ($values as $value) {
+    $pairs[] = [$value, $value];
+    $pairs[] = [(string) $value, $value];
+    $replacement = $value % 5 === 0 ? null : -$value;
+    $rightPairs[] = [(string) $value, $replacement];
+    $rightPairs[] = ['new:' . $value, $value];
+    $expectedMerged[] = [$value, $value];
+    $expectedMerged[] = [(string) $value, $replacement];
+    $newPairs[] = ['new:' . $value, $value];
+    if ($value % 2 === 0) {
+        $expectedFiltered[] = [(string) $value, $value];
+    }
+}
+$expectedMerged = [...$expectedMerged, ...$newPairs];
+$dictionary = Dict::fromPairs(pairs: $pairs);
+$rightDictionary = Dict::fromPairs(pairs: $rightPairs);
+$results['dict_filter_typed_keys'] = [
+    'native_pair_loop' => $measure(static function () use ($pairs): array {
+        $filtered = [];
+        foreach ($pairs as [$key, $value]) {
+            if (is_string($key) && $value % 2 === 0) {
+                $filtered[] = [$key, $value];
+            }
+        }
+        return $filtered;
+    }, $expectedFiltered, $iterations),
+    'dict_filter' => $measure(
+        static fn (): array => $dictionary
+            ->filter(predicate: static fn (int $value, int|string $key): bool => is_string($key) && $value % 2 === 0)
+            ->toPairs(),
+        $expectedFiltered,
+        $iterations,
+    ),
+];
+foreach ($positions as $position => $target) {
+    $matchesKey = static fn (int $value, int|string $key): bool => $key === (string) $target;
+    $acceptsKey = static fn (int $value, int|string $key): bool => $key !== (string) $target;
+    $expectedPair = $target < $size ? [(string) $target, $target] : null;
+    $results['dict_find_' . $position] = [
+        'filter_then_first_pair' => $measure(
+            static fn (): ?array => $dictionary->filter(predicate: $matchesKey)->toPairs()[0] ?? null,
+            $expectedPair,
+            $iterations,
+        ),
+        'direct_find' => $measure(
+            static fn (): ?array => $dictionary->find(predicate: $matchesKey)
+                ->getOrElse(fallback: static fn () => null),
+            $expectedPair,
+            $iterations,
+        ),
+    ];
+    $results['dict_any_' . $position] = [
+        'filter_then_nonempty' => $measure(
+            static fn (): bool => !$dictionary->filter(predicate: $matchesKey)->isEmpty(),
+            $target < $size,
+            $iterations,
+        ),
+        'direct_any' => $measure(
+            static fn (): bool => $dictionary->any(predicate: $matchesKey),
+            $target < $size,
+            $iterations,
+        ),
+    ];
+    $results['dict_every_' . $position] = [
+        'filter_then_count' => $measure(
+            static fn (): bool => $dictionary->filter(predicate: $acceptsKey)->count() === count($pairs),
+            $target >= $size,
+            $iterations,
+        ),
+        'direct_every' => $measure(
+            static fn (): bool => $dictionary->every(predicate: $acceptsKey),
+            $target >= $size,
+            $iterations,
+        ),
+    ];
+}
+$results['dict_merge_typed_keys'] = [
+    'native_encoded_pair_loop' => $measure(static function () use ($pairs, $rightPairs): array {
+        $merged = [];
+        foreach ([$pairs, $rightPairs] as $source) {
+            foreach ($source as [$key, $value]) {
+                $merged[(is_int($key) ? 'i:' : 's:') . $key] = [$key, $value];
+            }
+        }
+        return array_values($merged);
+    }, $expectedMerged, $iterations),
+    'dict_merge' => $measure(
+        static fn (): array => $dictionary->merge(other: $rightDictionary)->toPairs(),
+        $expectedMerged,
+        $iterations,
+    ),
+];
+if ($dictionary->toPairs() !== $pairs || $rightDictionary->toPairs() !== $rightPairs) {
+    throw new RuntimeException('Dictionary operations must leave both input snapshots unchanged.');
 }
 
 echo json_encode([

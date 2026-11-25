@@ -20,8 +20,15 @@ php benchmarks/run.php --size=100000 --iterations=7
 | `any_first/middle/last/missing` | 同じ位置の一致を存在判定。全件filter後の空判定とanyを比較する。 |
 | `every_first/middle/last/missing` | 同じ位置で不一致となる全件判定。全件filter後の件数比較とeveryを比較する。missingは全件が条件を満たす。 |
 | `reuse_existing_vec` | 既存VecのIteratorを再収集する場合とfromIterableで同一Vecを再利用する場合を比較。返却値全体とVecの同一性も確認する。 |
+| `dict_filter_typed_keys` | 同じ数値の整数キーと文字列キーを各1件、計`2 × size`件持つ構築済み辞書から、偶数値の文字列キーだけを保持。組を直接走査するループとfilterの出力全体を照合する。 |
+| `dict_find_first/middle/last/missing` | 上記辞書の文字列キーを検索し、全件filter後の先頭組と短絡findを比較。返却するキーの型も照合する。 |
+| `dict_any_first/middle/last/missing` | 同じ文字列キーを存在判定し、全件filter後の空判定と短絡anyを比較する。 |
+| `dict_every_first/middle/last/missing` | 同じ文字列キーで不一致となる全件判定。全件filter後の件数比較と短絡everyを比較する。 |
+| `dict_merge_typed_keys` | 左`2 × size`件、右`2 × size`件。右は文字列キーだけを置換して`size`件を追加し、結果は`3 × size`件。nullによる置換・整数キーの保持・元位置・追加順を全件照合する。 |
 
 検索・判定では入力Vecを測定区間の外で一度構築し、早期終了と入力構築のコストを分けます。末尾一致や一致なしでは全走査が必要です。先頭一致の結果だけで、通常の全操作が高速になるとは判断しません。既存Vecの再利用は定数時間ですが、元データの取得や作成まで定数時間になるわけではありません。
+
+Dictの測定はv0.2.0で追加しました。入力Dictも測定区間外で構築し、出力の`toPairs()`は測定に含めます。mergeのネイティブループは毎回キーを符号化しますが、構築済みDictは既存の内部キーを利用します。filterのネイティブループはコールバック呼出しを伴いません。この差を含む操作単位の測定であり、速度の一般化や入力構築込みの比較には使いません。文字列キーは対応する整数キーの直後にあるため、`first`でも最初の2件を判定します。全試行後に両入力の不変性も確認します。
 
 ## 比較条件
 

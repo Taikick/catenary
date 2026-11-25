@@ -68,6 +68,46 @@ function inference(array $numbers, array $strings, ?string $nullable, int $numbe
         'Catenary\\Dict<string, non-empty-string>',
         $dict->mapValues(fn (int $n, string $k): string => $k . $n),
     );
+    assertType(
+        'Catenary\\Dict<string, int>',
+        $dict->filter(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== ''),
+    );
+    assertType(
+        'Catenary\\Option<array{string, int}>',
+        $dict->find(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== ''),
+    );
+    assertType('bool', $dict->any(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== ''));
+    assertType('bool', $dict->every(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== ''));
+    assertType(
+        'int',
+        $dict->fold(
+            initial: 0,
+            reducer: fn (int $total, int $value, string $key): int => $total + $value + strlen($key),
+        ),
+    );
+    assertType(
+        'int|null',
+        $dict->fold(
+            initial: null,
+            reducer: fn (?int $total, int $value, string $key): int =>
+                ($total ?? 0) + $value + strlen($key),
+        ),
+    );
+    assertType(
+        'string',
+        Dict::empty()->fold(initial: $text, reducer: fn (string $total): string => $total),
+    );
+    $otherDict = Dict::fromPairs(pairs: [[$number, $text]]);
+    assertType('Catenary\\Dict<int|string, int|string>', $dict->merge(other: $otherDict));
+    assertType('Catenary\\Dict<string, int>', $dict->merge(other: Dict::empty()));
+    assertType('Catenary\\Dict<string, int>', Dict::empty()->merge(other: $dict));
+    assertType('Catenary\\Dict<never, never>', Dict::empty()->merge(other: Dict::empty()));
+    assertType('Catenary\\Dict<never, never>', Dict::empty()->filter(predicate: fn (): bool => true));
+    $nullableDict = Dict::fromPairs(pairs: [[$number, $nullable], [$text, null]]);
+    assertType('Catenary\\Dict<int|string, string|null>', $nullableDict->filter(predicate: fn (): bool => true));
+    assertType('Catenary\\Option<array{int|string, string|null}>', $nullableDict->find(predicate: fn (): bool => true));
+    $nullDict = Dict::fromPairs(pairs: [[$text, null]]);
+    assertType('Catenary\\Option<array{string, null}>', $nullDict->find(predicate: fn (): bool => true));
     assertType('Catenary\\Option<int>', $dict->get($text));
     assertType('Catenary\\Vec<string>', $dict->keys());
     assertType('Catenary\\Vec<int>', $dict->values());

@@ -12,8 +12,8 @@ Public classes live in `Catenary`. `Internal` is not a supported extension API.
 - Immutability is shallow. Objects, resources and references inside element values are not recursively copied or frozen.
   不変性は浅いものです。要素内のオブジェクト・資源・参照を再帰的に複製または凍結しません。
   `Vec::fromIterable`と`Dict::fromPairs`は入力配列の第一階層の参照を値から切り離します。
-- Callbacks accept values, not implicit indexes, unless explicitly documented (`Dict::mapValues` gets value then key). Any PHP callable is accepted. Callbacks may have side effects or throw; exceptions propagate unchanged.
-  明記された例外を除き、コールバックには値だけを渡します。`Dict::mapValues`には値・キーの順で渡します。PHPのcallableを受け入れ、副作用を禁止せず、例外はそのまま伝播します。
+- Callbacks accept values, not implicit indexes, unless explicitly documented. Dict mappers and predicates receive `(value, key)`; Dict reducers receive `(accumulator, value, key)`. Any PHP callable is accepted. Callbacks may have side effects or throw; exceptions propagate unchanged.
+  明記された例外を除き、コールバックには値だけを渡します。Dictの変換・判定には値・キー、集約には累積値・値・キーの順で渡します。PHPのcallableを受け入れ、副作用を禁止せず、例外はそのまま伝播します。
 - Generic PHPDoc types are part of the public contract. Static analysis checks callback/element types. Native PHP checks native parameter types; heterogeneous container contents are not recursively runtime-validated.
   ジェネリクスのPHPDocも公開契約です。コールバックや要素の型は静的解析で確認します。実行時はPHPのネイティブ引数型の検査を行い、格納内容の型を再帰的に検査しません。
 
@@ -77,6 +77,9 @@ take/dropの負数、chunkの0以下は即座に`InvalidArgumentException`にな
 
 ## Dict：キーの型を区別する辞書
 
+`filter`・`find`・`any`・`every`・`fold`・`merge`は`v0.2.0`で追加しました。
+`filter`, `find`, `any`, `every`, `fold` and `merge` were added in `v0.2.0`.
+
 | API | Behavior / 動作 | Time / 時間 |
 | --- | --- | --- |
 | `empty()`, `fromPairs(pairs)` | Empty or insertion-ordered creation / 空または挿入順の構築 | O(1), expected O(n) |
@@ -85,11 +88,26 @@ take/dropの負数、chunkの0以下は即座に`InvalidArgumentException`にな
 | `with(key, value)` | Explicit replacement or insertion; preserves old position / 明示的な置換または追加・既存位置を保持 | O(n) copying |
 | `without(key)` | Remove key; missing is harmless / キーを除去・未登録でも正常終了 | O(n) copying |
 | `mapValues(mapper)` | Mapper receives `(value, key)` / 値・キーの順で変換 | O(n) + callbacks |
+| `filter(predicate)` | Keep matching entries and their original key types/order; eager / キーの型・順序を保ち条件に合う登録を即時抽出 | O(n) + callbacks |
+| `find(predicate)` | First matching `[key, value]` as `Option<array{K, V}>`; empty/missing is None / 最初に一致する組を返し、空・一致なしは欠損 | Worst O(n) + callbacks; short-circuit / 最悪O(n)、短絡 |
+| `any(predicate)` | First match returns true; empty is false / 最初の一致でtrue、空はfalse | Worst O(n) + callbacks; short-circuit / 最悪O(n)、短絡 |
+| `every(predicate)` | First rejection returns false; empty is true / 最初の不一致でfalse、空はtrue | Worst O(n) + callbacks; short-circuit / 最悪O(n)、短絡 |
+| `fold(initial, reducer)` | Left fold with `(accumulator, value, key)`; empty returns initial unchanged / 累積値・値・キーの順で左畳み込み、空なら初期値をそのまま返す | O(n) + callbacks |
+| `merge(other)` | Right-hand values replace matching typed keys at their original positions; new keys append / 同じ型のキーは右側の値で既存位置を置換し、新しいキーは末尾へ追加 | Expected O(n + m) / 期待O(n + m) |
 | `keys()`, `values()` | Ordered Vec views / 順序付きVecを返す | O(n) |
 | `toPairs()`, `getIterator()` | `[key, value]` pairs; lossless key types / 型を損なわないキーと値の組 | O(n) |
 
 Duplicates are rejected during bulk construction, even if the previous value is null. Removing and reinserting a key moves it to the end. Hash complexity assumes ordinary PHP hash-table behavior and bounded key length; hashing long strings also costs their length.
 一括構築での重複は先行値がnullでも拒否します。除去後に再挿入したキーは末尾に移動します。ハッシュの計算量は通常のPHPハッシュテーブルと有界なキー長を前提とし、長い文字列のハッシュには文字列長に応じたコストがかかります。
+
+Dict predicates have type `callable(V, K): bool`. They run in insertion order, at most once per visited entry. `filter` visits every entry and retains O(k) output for k matches. `find`/`any`/`every` stop when their result is known, retain O(1) additional container state and do not build an intermediate dictionary. Empty dictionaries do not invoke the predicate. A matching null value produces `Some([key, null])` from `find`, not None; `get(key)` continues to return just the value as `Option<V>`. Callback exceptions propagate unchanged and no partial result is returned.
+Dictの述語は`callable(V, K): bool`で、挿入順に訪問した各登録を高々一回評価します。`filter`は全件を評価し、一致したk件分の出力をO(k)で保持します。`find`・`any`・`every`は結果が決まると終了し、中間辞書を作らず、コンテナ自体の追加状態はO(1)です。空なら述語を呼びません。`find`でnullの値が一致した場合はNoneではなく`Some([key, null])`です。キー指定の`get`は引き続き値だけを`Option<V>`で返します。コールバックの例外はそのまま伝播し、部分的な結果は返しません。
+
+`fold` accepts initial type A and reducer `callable(A|B, V, K): B`, returning A|B. It passes the previous result to the next call in insertion order, or returns the exact initial value on an empty dictionary. Its extra memory is the accumulator and callback allocations, not a materialized list of entries. Container immutability does not freeze a mutable accumulator or objects modified by a callback.
+`fold`は初期値Aと`callable(A|B, V, K): B`の集約処理を受け取り、A|Bを返します。挿入順に直前の結果を次の呼出しへ渡し、空の辞書では初期値そのものを返します。追加メモリは累積値とコールバックが確保する領域で、登録一覧を別途実体化しません。コンテナの不変性は、可変な累積値やコールバックが操作するオブジェクトを凍結するものではありません。
+
+`merge` explicitly replaces values, like repeated `with`, while combining the dictionaries in one operation. Exact typed-key matches use the right-hand value, including null, without moving the existing left-hand position. Right-hand keys absent on the left append in right-hand insertion order. Integer `1` and string `'1'` remain separate, and neither input dictionary changes. Merging `Dict<K, V>` with `Dict<KOther, VOther>` yields `Dict<K|KOther, V|VOther>`. The result retains at most O(n + m) entries; values are not deep-copied. This avoids the repeated whole-dictionary copies of a loop calling `with`.
+`merge`は`with`と同様に明示的に値を置換し、二つの辞書を一回の操作で結合します。型も同じキーにはnullを含む右側の値を使い、左側の既存位置は動かしません。左側にない右側のキーは、右側の挿入順で末尾へ追加します。整数`1`と文字列`'1'`は別のキーとして保持し、どちらの入力も変更しません。`Dict<K, V>`と`Dict<KOther, VOther>`の結合結果は`Dict<K|KOther, V|VOther>`です。出力の保持領域は最大O(n + m)で、値の深いコピーは行いません。`with`をループで繰り返す場合の辞書全体の反復コピーを避けられます。
 
 ## Stream：必要な分だけ遅延評価
 

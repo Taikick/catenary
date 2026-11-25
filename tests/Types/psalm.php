@@ -80,6 +80,45 @@ function psalmInference(array $numbers, array $strings, ?string $nullable, int $
     /** @psalm-check-type-exact $newDict = Dict<int|string, int|string> */
     $mappedDict = $dict->mapValues(fn (int $n, string $k): string => $k . $n);
     /** @psalm-check-type-exact $mappedDict = Dict<string, non-falsy-string> */
+    $filteredDict = $dict->filter(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== '');
+    /** @psalm-check-type-exact $filteredDict = Dict<string, int> */
+    $foundPair = $dict->find(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== '');
+    /** @psalm-check-type-exact $foundPair = Option<array{string, int}> */
+    $dictAny = $dict->any(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== '');
+    /** @psalm-check-type-exact $dictAny = bool */
+    $dictEvery = $dict->every(predicate: fn (int $value, string $key): bool => $value > 0 && $key !== '');
+    /** @psalm-check-type-exact $dictEvery = bool */
+    $dictTotal = $dict->fold(
+        initial: 0,
+        reducer: fn (int $total, int $value, string $key): int => $total + $value + strlen($key),
+    );
+    /** @psalm-check-type-exact $dictTotal = int */
+    $nullableTotal = $dict->fold(
+        initial: null,
+        reducer: fn (?int $total, int $value, string $key): int => ($total ?? 0) + $value + strlen($key),
+    );
+    /** @psalm-check-type-exact $nullableTotal = null|int */
+    $emptyFold = Dict::empty()->fold(initial: $text, reducer: fn (string $total): string => $total);
+    /** @psalm-check-type-exact $emptyFold = string */
+    $otherDict = Dict::fromPairs(pairs: [[$number, $text]]);
+    $merged = $dict->merge(other: $otherDict);
+    /** @psalm-check-type-exact $merged = Dict<int|string, int|string> */
+    $mergedEmpty = $dict->merge(other: Dict::empty());
+    /** @psalm-check-type-exact $mergedEmpty = Dict<string, int> */
+    $emptyMerged = Dict::empty()->merge(other: $dict);
+    /** @psalm-check-type-exact $emptyMerged = Dict<string, int> */
+    $bothEmpty = Dict::empty()->merge(other: Dict::empty());
+    /** @psalm-check-type-exact $bothEmpty = Dict<never, never> */
+    $filteredEmpty = Dict::empty()->filter(predicate: fn (): bool => true);
+    /** @psalm-check-type-exact $filteredEmpty = Dict<never, never> */
+    $nullableDict = Dict::fromPairs(pairs: [[$number, $nullable], [$text, null]]);
+    $filteredNullable = $nullableDict->filter(predicate: fn (): bool => true);
+    /** @psalm-check-type-exact $filteredNullable = Dict<int|string, null|string> */
+    $foundNullable = $nullableDict->find(predicate: fn (): bool => true);
+    /** @psalm-check-type-exact $foundNullable = Option<array{int|string, null|string}> */
+    $nullDict = Dict::fromPairs(pairs: [[$text, null]]);
+    $foundNullPair = $nullDict->find(predicate: fn (): bool => true);
+    /** @psalm-check-type-exact $foundNullPair = Option<array{string, null}> */
     $lookup = $dict->get($text);
     /** @psalm-check-type-exact $lookup = Option<int> */
     $keys = $dict->keys();

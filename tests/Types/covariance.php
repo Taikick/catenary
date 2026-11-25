@@ -54,6 +54,26 @@ function supportedVariance(DateTimeImmutable $date): void
         optional: Option::none(),
         stream: Vec::empty()->stream(),
     ));
+    $indexedDates = Dict::fromPairs(pairs: [['date', $date]]);
+    $moreDates = Dict::fromPairs(pairs: [[1, $date]]);
+    $mergedDates = $indexedDates->merge(other: $moreDates);
+    echo implode(',', dateLabels(
+        values: $mergedDates->values(),
+        indexed: $mergedDates->filter(
+            predicate: fn (DateTimeInterface $value, int|string $key): bool => $value->getTimestamp() > 0,
+        ),
+        optional: $mergedDates->find(predicate: fn (DateTimeInterface $value): bool => $value->getTimestamp() > 0)
+            ->map(mapper: fn (array $pair): DateTimeInterface => $pair[1]),
+        stream: $mergedDates->values()->stream(),
+    ));
+    echo (int) $mergedDates->any(predicate: fn (DateTimeInterface $value): bool => $value->getTimestamp() > 0);
+    echo (int) $mergedDates->every(predicate: fn (DateTimeInterface $value): bool => $value->getTimestamp() > 0);
+    $latestDate = $mergedDates->fold(
+        initial: null,
+        reducer: fn (?DateTimeInterface $latest, DateTimeInterface $next): DateTimeInterface =>
+            $latest === null || $next > $latest ? $next : $latest,
+    );
+    echo $latestDate?->format('Y');
     $visits = 0;
     Vec::of($date)->map(function (DateTimeInterface $value) use (&$visits): string {
         ++$visits;

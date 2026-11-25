@@ -7,7 +7,7 @@ PHPの配列や`iterable`を、型付きのメソッドチェーンで扱うた�
 
 **PHP 8.3以上・MITライセンス・実行時の外部依存なし。** PHPStanとPsalmの型推論をテストし、フレームワークに依存せず利用できます。
 
-**初期リリース: `v0.1.0`（2026-11-25）。** 1.0前のAPIで、マイナーバージョンでは破壊的変更を行う場合があります。パッチバージョンでは互換性を維持します。Packagistには未登録のため、下記のVCS設定でタグ版を導入してください。旧名からの変更は[移行ガイド](docs/migration-to-catenary.md)を参照してください。
+**最新リリース: `v0.2.0`（2026-11-25）。** 1.0前のAPIで、マイナーバージョンでは破壊的変更を行う場合があります。パッチバージョンでは互換性を維持します。Packagistには未登録のため、下記のVCS設定でタグ版を導入してください。旧名からの変更は[移行ガイド](docs/migration-to-catenary.md)を参照してください。
 
 ## 値を変換して絞り込む
 
@@ -97,6 +97,34 @@ $labels->get(key: 'memo')->getOrThrow(); // null：元の辞書は変更しな�
 
 `Dict::fromPairs`と`Vec::keyBy`は重複キーを`InvalidArgumentException`で拒否します。上書きには`with`を使い、既存キーの位置は保ちます。走査と`toPairs()`は`[キー, 値]`の組を返すため、整数`1`と文字列`'1'`を混同しません。
 
+### 辞書の絞り込み・検索・集約・結合
+
+以下の6メソッドは`v0.2.0`で追加しました。
+
+```php
+use Catenary\Dict;
+
+$amounts = Dict::fromPairs(pairs: [[1, 100], ['1', 200], ['extra', 50]]);
+
+$amounts->filter(predicate: fn (int $amount, int|string $key): bool => $amount >= 100)
+    ->toPairs(); // [[1, 100], ['1', 200]]
+$amounts->find(predicate: fn (int $amount, int|string $key): bool => $key === '1')
+    ->getOrThrow(); // ['1', 200]：値だけでなくキーも保持
+$amounts->any(predicate: fn (int $amount): bool => $amount > 150);   // true
+$amounts->every(predicate: fn (int $amount): bool => $amount > 0);   // true
+$amounts->fold(
+    initial: 0,
+    reducer: fn (int $total, int $amount, int|string $key): int => $total + $amount,
+); // 350
+
+$amounts->merge(other: Dict::fromPairs(pairs: [['1', 250], ['new', 75]]))
+    ->toPairs(); // [[1, 100], ['1', 250], ['extra', 50], ['new', 75]]
+```
+
+述語には値・キーの順で渡し、`filter`は全件、`find`・`any`・`every`は結果が決まるまで挿入順に判定します。空の辞書ではそれぞれ空のDict・None・false・trueになり、述語を呼びません。`find`は`Option<array{K, V}>`を返し、nullの値が一致しても`Some([key, null])`として保持します。`fold`の第3引数はキーで、空なら初期値そのものを返します。
+
+`merge`は型も同じキーを右側の値で上書きし、左側の既存位置を維持します。新しいキーは右側の順番で末尾へ追加し、元の辞書は両方とも変更しません。詳細な評価回数・型・計算量は[API契約](docs/contracts.md#dictキーの型を区別する辞書)を参照してください。
+
 ## 必要な分だけ生成する
 
 ```php
@@ -129,7 +157,7 @@ $snapshot->toList(); // [0, 2, 4]
     "repositories": [
         {"type": "vcs", "url": "https://github.com/Taikick/catenary"}
     ],
-    "require": {"catenary/collections": "^0.1.0"}
+    "require": {"catenary/collections": "^0.2.0"}
 }
 ```
 
@@ -137,7 +165,7 @@ $snapshot->toList(); // [0, 2, 4]
 composer update catenary/collections --with-dependencies
 ```
 
-`^0.1.0`は`0.1.0`以上・`0.2.0`未満の更新を許可します。suffixのない`v0.1.0`はComposerでは`stable`に分類されます。APIの互換性は[1.0前の方針](CONTRIBUTING.md#compatibility--互換性)に従います。更新した`composer.lock`をレビュー・保存し、配備には`composer install`を使います。旧パッケージを利用中の場合は[改名に伴う移行手順](docs/migration-to-catenary.md)に従ってください。
+`^0.2.0`は`0.2.0`以上・`0.3.0`未満の更新を許可します。suffixのない`v0.2.0`はComposerでは`stable`に分類されます。APIの互換性は[1.0前の方針](CONTRIBUTING.md#compatibility--互換性)に従います。更新した`composer.lock`をレビュー・保存し、配備には`composer install`を使います。旧パッケージを利用中の場合は[改名に伴う移行手順](docs/migration-to-catenary.md)に従ってください。
 
 未リリースの変更を試す場合だけ`dev-main`を選び、利用先の`composer.lock`でレビュー済みコミットを固定してください。`main`にはタグ版より後の変更が入ります。
 
